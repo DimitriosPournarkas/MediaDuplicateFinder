@@ -18,7 +18,7 @@
 // stb_image for image loading
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-
+//hallo
 namespace fs = std::filesystem;
 
 // ---------------------------------------------------------
@@ -48,15 +48,54 @@ struct FileInfo {
 // ---------------------------------------------------------
 class SimilarityFinder {
 public:
-    bool areExcelSimilar(const FileInfo& xls1, const FileInfo& xls2) {
-        #ifdef _WIN32
-            std::string command = "python excel_comparer.py \"" + xls1.path + "\" \"" + xls2.path + "\"";
-        #else
-            std::string command = "python3 excel_comparer.py \"" + xls1.path + "\" \"" + xls2.path + "\"";
-        #endif
+    uint64_t calculateImageHash(const std::string& imagePath) {
+        int width, height, channels;
+        unsigned char* img = stbi_load(imagePath.c_str(), &width, &height, &channels, 1);
         
-        int result = system(command.c_str());
-        return result == 0;
+        if (!img) return 0;
+        
+        // Resize to 9x8 for dHash
+        const int hashWidth = 9;
+        const int hashHeight = 8;
+        unsigned char resized[hashWidth * hashHeight];
+        
+        for (int y = 0; y < hashHeight; y++) {
+            for (int x = 0; x < hashWidth; x++) {
+                int srcX = x * width / hashWidth;
+                int srcY = y * height / hashHeight;
+                resized[y * hashWidth + x] = img[srcY * width + srcX];
+            }
+        }
+        
+        stbi_image_free(img);
+        
+        // Calculate dHash
+        uint64_t hash = 0;
+        int bitIndex = 0;
+        
+        for (int y = 0; y < hashHeight; y++) {
+            for (int x = 0; x < hashWidth - 1; x++) {
+                int left = resized[y * hashWidth + x];
+                int right = resized[y * hashWidth + (x + 1)];
+                
+                if (left < right) {
+                    hash |= (1ULL << bitIndex);
+                }
+                bitIndex++;
+            }
+        }
+        
+        return hash;
+    }
+
+    int hammingDistance(uint64_t hash1, uint64_t hash2) {
+        uint64_t diff = hash1 ^ hash2;
+        int distance = 0;
+        while (diff) {
+            distance += diff & 1;
+            diff >>= 1;
+        }
+        return distance;
     }
 
     double calculateStringSimilarity(const std::string& s1, const std::string& s2) {
@@ -129,38 +168,30 @@ public:
     }
     
     bool areDocumentsSimilar(const FileInfo& doc1, const FileInfo& doc2) {
-    // Size similarity
-    double sizeRatio = (double)std::min(doc1.size_bytes, doc2.size_bytes) 
-                     / std::max(doc1.size_bytes, doc2.size_bytes);
-    
-    if (sizeRatio < 0.3) return false;
-    
-    // Excel content similarity (ONLY content matters for Excel)
-    if ((doc1.path.find(".xlsx") != std::string::npos || 
-         doc1.path.find(".xls") != std::string::npos) &&
-        (doc2.path.find(".xlsx") != std::string::npos || 
-         doc2.path.find(".xls") != std::string::npos)) {
-        return areExcelSimilar(doc1, doc2);  // ONLY content check
+        // Size similarity
+        double sizeRatio = (double)std::min(doc1.size_bytes, doc2.size_bytes) 
+                         / std::max(doc1.size_bytes, doc2.size_bytes);
+        
+        if (sizeRatio < 0.3) return false;
+        
+        // Filename similarity
+        std::string name1 = fs::path(doc1.path).stem().string();
+        std::string name2 = fs::path(doc2.path).stem().string();
+        
+        if (calculateStringSimilarity(name1, name2) > 0.7) {
+            return true;
+        }
+        
+        // Content similarity for text files
+        if (doc1.path.find(".txt") != std::string::npos || 
+            doc1.path.find(".csv") != std::string::npos) {
+            std::string content1 = extractTextContent(doc1);
+            std::string content2 = extractTextContent(doc2);
+            return calculateTextSimilarity(content1, content2) > 0.6;
+        }
+        
+        return false;
     }
-    
-    // For other documents, use filename similarity
-    std::string name1 = fs::path(doc1.path).stem().string();
-    std::string name2 = fs::path(doc2.path).stem().string();
-    
-    if (calculateStringSimilarity(name1, name2) > 0.7) {
-        return true;
-    }
-    
-    // Content similarity for text files
-    if (doc1.path.find(".txt") != std::string::npos || 
-        doc1.path.find(".csv") != std::string::npos) {
-        std::string content1 = extractTextContent(doc1);
-        std::string content2 = extractTextContent(doc2);
-        return calculateTextSimilarity(content1, content2) > 0.6;
-    }
-    
-    return false;
-}
     
     bool areArchivesSimilar(const FileInfo& arch1, const FileInfo& arch2) {
         double sizeRatio = (double)std::min(arch1.size_bytes, arch2.size_bytes) 
@@ -171,15 +202,13 @@ public:
         
         return sizeRatio > 0.8 && calculateStringSimilarity(name1, name2) > 0.6;
     }
-    
     bool areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
-        // Use only size similarity for images
-        double sizeRatio = (double)std::min(img1.size_bytes, img2.size_bytes) 
-                         / std::max(img1.size_bytes, img2.size_bytes);
-        
-        return sizeRatio > 0.8; // 80% size similarity
-    }
+    // Use only size similarity for images
+    double sizeRatio = (double)std::min(img1.size_bytes, img2.size_bytes) 
+                     / std::max(img1.size_bytes, img2.size_bytes);
     
+    return sizeRatio > 0.8; // 80% size similarity
+    }    
     bool areAudioSimilar(const FileInfo& audio1, const FileInfo& audio2) {
         std::string name1 = fs::path(audio1.path).stem().string();
         std::string name2 = fs::path(audio2.path).stem().string();
@@ -217,6 +246,7 @@ public:
         return false;
     }
 };
+
 // ---------------------------------------------------------
 // FileScanner class
 // ---------------------------------------------------------
