@@ -15,6 +15,10 @@
     #include <wincrypt.h>
 #endif
 
+// stb_image for image loading
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 namespace fs = std::filesystem;
 
 // ---------------------------------------------------------
@@ -44,6 +48,17 @@ struct FileInfo {
 // ---------------------------------------------------------
 class SimilarityFinder {
 public:
+    bool areExcelSimilar(const FileInfo& xls1, const FileInfo& xls2) {
+        #ifdef _WIN32
+            std::string command = "python excel_comparer.py \"" + xls1.path + "\" \"" + xls2.path + "\"";
+        #else
+            std::string command = "python3 excel_comparer.py \"" + xls1.path + "\" \"" + xls2.path + "\"";
+        #endif
+        
+        int result = system(command.c_str());
+        return result == 0;
+    }
+
     double calculateStringSimilarity(const std::string& s1, const std::string& s2) {
         std::string s1_lower = s1, s2_lower = s2;
         std::transform(s1_lower.begin(), s1_lower.end(), s1_lower.begin(), ::tolower);
@@ -114,30 +129,38 @@ public:
     }
     
     bool areDocumentsSimilar(const FileInfo& doc1, const FileInfo& doc2) {
-        // Size similarity
-        double sizeRatio = (double)std::min(doc1.size_bytes, doc2.size_bytes) 
-                         / std::max(doc1.size_bytes, doc2.size_bytes);
-        
-        if (sizeRatio < 0.3) return false;
-        
-        // Filename similarity
-        std::string name1 = fs::path(doc1.path).stem().string();
-        std::string name2 = fs::path(doc2.path).stem().string();
-        
-        if (calculateStringSimilarity(name1, name2) > 0.7) {
-            return true;
-        }
-        
-        // Content similarity for text files
-        if (doc1.path.find(".txt") != std::string::npos || 
-            doc1.path.find(".csv") != std::string::npos) {
-            std::string content1 = extractTextContent(doc1);
-            std::string content2 = extractTextContent(doc2);
-            return calculateTextSimilarity(content1, content2) > 0.6;
-        }
-        
-        return false;
+    // Size similarity
+    double sizeRatio = (double)std::min(doc1.size_bytes, doc2.size_bytes) 
+                     / std::max(doc1.size_bytes, doc2.size_bytes);
+    
+    if (sizeRatio < 0.3) return false;
+    
+    // Excel content similarity (ONLY content matters for Excel)
+    if ((doc1.path.find(".xlsx") != std::string::npos || 
+         doc1.path.find(".xls") != std::string::npos) &&
+        (doc2.path.find(".xlsx") != std::string::npos || 
+         doc2.path.find(".xls") != std::string::npos)) {
+        return areExcelSimilar(doc1, doc2);  // ONLY content check
     }
+    
+    // For other documents, use filename similarity
+    std::string name1 = fs::path(doc1.path).stem().string();
+    std::string name2 = fs::path(doc2.path).stem().string();
+    
+    if (calculateStringSimilarity(name1, name2) > 0.7) {
+        return true;
+    }
+    
+    // Content similarity for text files
+    if (doc1.path.find(".txt") != std::string::npos || 
+        doc1.path.find(".csv") != std::string::npos) {
+        std::string content1 = extractTextContent(doc1);
+        std::string content2 = extractTextContent(doc2);
+        return calculateTextSimilarity(content1, content2) > 0.6;
+    }
+    
+    return false;
+}
     
     bool areArchivesSimilar(const FileInfo& arch1, const FileInfo& arch2) {
         double sizeRatio = (double)std::min(arch1.size_bytes, arch2.size_bytes) 
@@ -150,30 +173,32 @@ public:
     }
     
     bool areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
+        // Use only size similarity for images
         double sizeRatio = (double)std::min(img1.size_bytes, img2.size_bytes) 
                          / std::max(img1.size_bytes, img2.size_bytes);
-        return sizeRatio > 0.7;
+        
+        return sizeRatio > 0.8; // 80% size similarity
     }
     
     bool areAudioSimilar(const FileInfo& audio1, const FileInfo& audio2) {
-    std::string name1 = fs::path(audio1.path).stem().string();
-    std::string name2 = fs::path(audio2.path).stem().string();
-    
-    // Very strict: only names that are almost identical
-    std::string name1_lower = name1;
-    std::string name2_lower = name2;
-    std::transform(name1_lower.begin(), name1_lower.end(), name1_lower.begin(), ::tolower);
-    std::transform(name2_lower.begin(), name2_lower.end(), name2_lower.begin(), ::tolower);
-    
-    // Only match if names are identical or one is prefix of the other with numbers
-    if (name1_lower == name2_lower) return true;
-    
-    // Check if one is base of the other (like "song" and "song1")
-    if ((name1_lower + "1") == name2_lower || (name2_lower + "1") == name1_lower) return true;
-    if ((name1_lower + "2") == name2_lower || (name2_lower + "2") == name1_lower) return true;
-    
-    // Very high similarity threshold
-    return calculateStringSimilarity(name1, name2) > 0.9;
+        std::string name1 = fs::path(audio1.path).stem().string();
+        std::string name2 = fs::path(audio2.path).stem().string();
+        
+        // Very strict: only names that are almost identical
+        std::string name1_lower = name1;
+        std::string name2_lower = name2;
+        std::transform(name1_lower.begin(), name1_lower.end(), name1_lower.begin(), ::tolower);
+        std::transform(name2_lower.begin(), name2_lower.end(), name2_lower.begin(), ::tolower);
+        
+        // Only match if names are identical or one is prefix of the other with numbers
+        if (name1_lower == name2_lower) return true;
+        
+        // Check if one is base of the other (like "song" and "song1")
+        if ((name1_lower + "1") == name2_lower || (name2_lower + "1") == name1_lower) return true;
+        if ((name1_lower + "2") == name2_lower || (name2_lower + "2") == name1_lower) return true;
+        
+        // Very high similarity threshold
+        return calculateStringSimilarity(name1, name2) > 0.9;
     }
     
     bool areFilesSimilar(const FileInfo& file1, const FileInfo& file2) {
@@ -192,7 +217,6 @@ public:
         return false;
     }
 };
-
 // ---------------------------------------------------------
 // FileScanner class
 // ---------------------------------------------------------
@@ -335,6 +359,8 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
     std::vector<std::vector<FileInfo>> similarGroups;
     std::vector<bool> processed(files.size(), false);
     
+    std::cout << "Finding similar files...\n";
+    
     for (size_t i = 0; i < files.size(); i++) {
         if (processed[i]) continue;
         
@@ -351,7 +377,14 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
         if (group.size() > 1) {
             similarGroups.push_back(group);
         }
+        
+        if ((i + 1) % 10 == 0) {
+            std::cout << "Processed " << (i + 1) << "/" << files.size() << " files...\r";
+            std::cout.flush();
+        }
     }
+    
+    std::cout << "\nDone finding similar files!\n\n";
     
     return similarGroups;
 }
@@ -359,17 +392,16 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
 // ---------------------------------------------------------
 // Main program
 // ---------------------------------------------------------
-//C:\\GitHub\\MediaDuplicateFinder
 std::string selectDirectory() {
-    return "C:\\GitHub\\MediaDuplicateFinder";
+    return "C:\\Users\\dimi1\\Downloads\\Bilder_Dimitrios";
 }
-#include <locale>
-#include <codecvt>
+
 int main() {
-    // Simple UTF-8 fix for Windows - DIESE ZEILE EINFÜGEN
+    // Simple UTF-8 fix for Windows
     #ifdef _WIN32
     system("chcp 65001 > nul");
     #endif
+    
     std::string directory = selectDirectory();
     FileScanner scanner;
 
@@ -379,8 +411,6 @@ int main() {
 
     if (files.empty()) {
         std::cout << "No files found!\n";
-        std::cout << "\nPress Enter to exit...";
-        std::cin.get();
         return 0;
     }
 
@@ -388,9 +418,9 @@ int main() {
     auto duplicates = scanner.findDuplicates(files);
 
     if (duplicates.empty()) {
-        std::cout << "No duplicates found!\n";
+        std::cout << "No exact duplicates found!\n";
     } else {
-        std::cout << "Found " << duplicates.size() << " groups of duplicates:\n\n";
+        std::cout << "Found " << duplicates.size() << " groups of exact duplicates:\n\n";
         int groupNum = 1;
         for (const auto& [hash, fileList] : duplicates) {
             std::cout << "Group " << groupNum++ << " (" << fileList.size() << " files):\n";
@@ -401,26 +431,42 @@ int main() {
         }
     }
 
-    // Find similar files
-    auto similarFiles = scanner.findSimilarFiles(files);
-    
-    if (!similarFiles.empty()) {
-        std::cout << "\n=== SIMILAR FILES ===" << std::endl;
-        std::cout << "Found " << similarFiles.size() << " groups of similar files:\n\n";
-        int groupNum = 1;
-        for (const auto& group : similarFiles) {
-            std::cout << "Similar Group " << groupNum++ << " (" << group.size() << " files):\n";
-            for (const auto& file : group) {
-                std::cout << "  - " << file.path << " (" << file.size_bytes 
-                          << " bytes, type: " << file.type << ")\n";
-            }
-            std::cout << std::endl;
+    // Build set of files that are exact duplicates (to exclude from similarity search)
+    std::set<std::string> exactDuplicatePaths;
+    for (const auto& [hash, fileList] : duplicates) {
+        for (const auto& file : fileList) {
+            exactDuplicatePaths.insert(file.path);
         }
-    } else {
-        std::cout << "\nNo similar files found!\n";
     }
 
-    std::cout << "Press Enter to exit...";
-    std::cin.get();
+    // Filter out exact duplicates from similarity search
+    std::vector<FileInfo> filesForSimilarity;
+    for (const auto& file : files) {
+        if (exactDuplicatePaths.find(file.path) == exactDuplicatePaths.end()) {
+            filesForSimilarity.push_back(file);
+        }
+    }
+
+    // Find similar files (only among non-exact-duplicates)
+    if (!filesForSimilarity.empty()) {
+        auto similarFiles = scanner.findSimilarFiles(filesForSimilarity);
+        
+        if (!similarFiles.empty()) {
+            std::cout << "\n=== SIMILAR FILES (not exact duplicates) ===" << std::endl;
+            std::cout << "Found " << similarFiles.size() << " groups of similar files:\n\n";
+            int groupNum = 1;
+            for (const auto& group : similarFiles) {
+                std::cout << "Similar Group " << groupNum++ << " (" << group.size() << " files):\n";
+                for (const auto& file : group) {
+                    std::cout << "  - " << file.path << " (" << file.size_bytes 
+                              << " bytes, type: " << file.type << ")\n";
+                }
+                std::cout << std::endl;
+            }
+        } else {
+            std::cout << "\nNo similar files found!\n";
+        }
+    }
+
     return 0;
 }
