@@ -18,7 +18,7 @@
 // stb_image for image loading
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-//hallo
+
 namespace fs = std::filesystem;
 
 // ---------------------------------------------------------
