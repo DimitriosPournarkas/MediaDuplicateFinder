@@ -1,9 +1,9 @@
 #include <iostream>
 #include <string>
+#include <vector>
 #include <filesystem>
 #include <algorithm>
 #include <map>
-#include <vector>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -328,7 +328,7 @@ private:
     SimilarityFinder similarityFinder;
 
 public:
-    // ADD THIS METHOD FOR QT GUI
+    // Method for Qt GUI compatibility
     std::vector<std::vector<std::string>> findDuplicates(const std::string& directory);
     
     // Your existing methods
@@ -373,7 +373,7 @@ std::vector<FileInfo> FileScanner::findFiles(const std::string& directory) {
             }
         }
     } catch (const fs::filesystem_error& e) {
-        std::cout << "Error scanning directory: " << e.what() << std::endl;
+        std::cerr << "Error scanning directory: " << e.what() << std::endl;
     }
 
     return results;
@@ -436,7 +436,7 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findDuplicates(
     const std::vector<FileInfo>& files) {
 
     std::map<std::string, std::vector<FileInfo>> duplicates;
-    std::cout << "Calculating hashes...\n";
+    std::cerr << "Calculating hashes..." << std::endl;
 
     int processed = 0;
     for (const auto& file : files) {
@@ -445,12 +445,11 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findDuplicates(
 
         processed++;
         if (processed % 10 == 0) {
-            std::cout << "Processed " << processed << "/" << files.size() << " files...\r";
-            std::cout.flush();
+            std::cerr << "Processed " << processed << "/" << files.size() << " files..." << std::endl;
         }
     }
 
-    std::cout << "\nDone calculating hashes!\n\n";
+    std::cerr << "Done calculating hashes!" << std::endl;
 
     for (auto it = duplicates.begin(); it != duplicates.end();) {
         if (it->second.size() < 2)
@@ -466,7 +465,7 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
     std::vector<std::vector<FileInfo>> similarGroups;
     std::vector<bool> processed(files.size(), false);
     
-    std::cout << "Finding similar files...\n";
+    std::cerr << "Finding similar files..." << std::endl;
     
     for (size_t i = 0; i < files.size(); i++) {
         if (processed[i]) continue;
@@ -486,18 +485,17 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
         }
         
         if ((i + 1) % 10 == 0) {
-            std::cout << "Processed " << (i + 1) << "/" << files.size() << " files...\r";
-            std::cout.flush();
+            std::cerr << "Processed " << (i + 1) << "/" << files.size() << " files..." << std::endl;
         }
     }
     
-    std::cout << "\nDone finding similar files!\n\n";
+    std::cerr << "Done finding similar files!" << std::endl;
     
     return similarGroups;
 }
 
 // ---------------------------------------------------------
-// NEW METHOD FOR QT GUI COMPATIBILITY
+// NEW METHOD FOR PYTHON GUI COMPATIBILITY
 // ---------------------------------------------------------
 std::vector<std::vector<std::string>> FileScanner::findDuplicates(const std::string& directory) {
     std::vector<std::vector<std::string>> result;
@@ -506,7 +504,7 @@ std::vector<std::vector<std::string>> FileScanner::findDuplicates(const std::str
     auto files = findFiles(directory);
     auto duplicateMap = findDuplicates(files);
     
-    // Convert to the format needed by Qt GUI
+    // Convert to the format needed by Python GUI
     for (const auto& [hash, fileList] : duplicateMap) {
         std::vector<std::string> group;
         for (const auto& fileInfo : fileList) {
@@ -517,244 +515,29 @@ std::vector<std::vector<std::string>> FileScanner::findDuplicates(const std::str
     
     return result;
 }
+
 // ---------------------------------------------------------
-// Console GUI Class
+// Main function for CLI (called by Python)
 // ---------------------------------------------------------
-class ConsoleGUI {
-private:
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <directory>" << std::endl;
+        return 1;
+    }
+    
+    std::string directory = argv[1];
     FileScanner scanner;
-    std::string currentDirectory;
-
-public:
-    void showMenu() {
-        while(true) {
-            system("cls");  // Clear screen (Windows)
-            
-            std::cout << "\n";
-            std::cout << "  MEDIA DUPLICATE FINDER\n";
-            std::cout << "  ======================\n";
-            
-            if(currentDirectory.empty()) {
-                std::cout << "  Directory: [NOT SET]\n";
-            } else {
-                std::cout << "  Directory: " << currentDirectory << "\n";
+    auto duplicates = scanner.findDuplicates(directory);
+    
+    // Output for Python (simple format)
+    for (const auto& group : duplicates) {
+        if (group.size() > 1) {
+            for (const auto& file : group) {
+                std::cout << file << std::endl;
             }
-            
-            std::cout << "  ----------------------\n";
-            std::cout << "  1. Set Directory\n";
-            std::cout << "  2. Scan for Duplicates\n"; 
-            std::cout << "  3. Scan for Similar Files\n";
-            std::cout << "  4. Full Scan\n";
-            std::cout << "  5. Exit\n";
-            std::cout << "  ----------------------\n";
-            std::cout << "  Select option: ";
-            
-            int choice;
-            std::cin >> choice;
-            std::cin.ignore();
-            
-            switch(choice) {
-                case 1: setDirectory(); break;
-                case 2: scanDuplicates(); break;
-                case 3: scanSimilar(); break;
-                case 4: fullScan(); break;
-                case 5: return;
-                default: 
-                    std::cout << "Invalid option!\n";
-                    std::cout << "Press any key to continue...";
-                    std::cin.get();
-            }
+            std::cout << "---GROUP---" << std::endl;  // Separator between groups
         }
     }
     
-    void setDirectory() {
-        system("cls");
-        std::cout << "SET DIRECTORY\n";
-        std::cout << "=============\n";
-        std::cout << "Current: " << (currentDirectory.empty() ? "[NOT SET]" : currentDirectory) << "\n\n";
-        std::cout << "Enter directory path: ";
-        
-        std::string newDir;
-        std::getline(std::cin, newDir);
-        
-        if(!newDir.empty()) {
-            currentDirectory = newDir;
-            std::cout << "Directory set!\n";
-        } else {
-            std::cout << "No directory entered!\n";
-        }
-        
-        std::cout << "\nPress any key to continue...";
-        std::cin.get();
-    }
-    
-    void scanDuplicates() {
-        if(!checkDirectory()) return;
-        
-        system("cls");
-        std::cout << "SCANNING FOR DUPLICATES\n";
-        std::cout << "=======================\n";
-        std::cout << "Scanning: " << currentDirectory << "\n\n";
-        
-        auto files = scanner.findFiles(currentDirectory);
-        std::cout << "Found " << files.size() << " files\n\n";
-        
-        if(files.empty()) {
-            std::cout << "No files found!\n";
-            std::cout << "\nPress any key to continue...";
-            std::cin.get();
-            return;
-        }
-        
-        std::cout << "Calculating hashes...\n";
-        auto duplicates = scanner.findDuplicates(files);
-        
-        displayDuplicates(duplicates);
-        
-        std::cout << "\n\nPress any key to continue...";
-        std::cin.get();
-    }
-    
-    void scanSimilar() {
-        if(!checkDirectory()) return;
-        
-        system("cls");
-        std::cout << "SCANNING FOR SIMILAR FILES\n";
-        std::cout << "==========================\n";
-        
-        auto files = scanner.findFiles(currentDirectory);
-        auto duplicates = scanner.findDuplicates(files);
-        
-        // Filter out exact duplicates
-        std::set<std::string> exactDuplicatePaths;
-        for(const auto& [hash, fileList] : duplicates) {
-            for(const auto& file : fileList) {
-                exactDuplicatePaths.insert(file.path);
-            }
-        }
-        
-        std::vector<FileInfo> filesForSimilarity;
-        for(const auto& file : files) {
-            if(exactDuplicatePaths.find(file.path) == exactDuplicatePaths.end()) {
-                filesForSimilarity.push_back(file);
-            }
-        }
-        
-        std::cout << "Finding similar files...\n";
-        auto similarFiles = scanner.findSimilarFiles(filesForSimilarity);
-        
-        displaySimilarFiles(similarFiles);
-        
-        std::cout << "\n\nPress any key to continue...";
-        std::cin.get();
-    }
-    
-    void fullScan() {
-        if(!checkDirectory()) return;
-        
-        system("cls");
-        std::cout << "FULL SCAN\n";
-        std::cout << "=========\n";
-        
-        auto files = scanner.findFiles(currentDirectory);
-        std::cout << "Found " << files.size() << " files\n\n";
-        
-        // Duplicates
-        std::cout << "Finding duplicates...\n";
-        auto duplicates = scanner.findDuplicates(files);
-        displayDuplicates(duplicates);
-        
-        // Similar files
-        std::set<std::string> exactDuplicatePaths;
-        for(const auto& [hash, fileList] : duplicates) {
-            for(const auto& file : fileList) {
-                exactDuplicatePaths.insert(file.path);
-            }
-        }
-        
-        std::vector<FileInfo> filesForSimilarity;
-        for(const auto& file : files) {
-            if(exactDuplicatePaths.find(file.path) == exactDuplicatePaths.end()) {
-                filesForSimilarity.push_back(file);
-            }
-        }
-        
-        std::cout << "\n\nFinding similar files...\n";
-        auto similarFiles = scanner.findSimilarFiles(filesForSimilarity);
-        displaySimilarFiles(similarFiles);
-        
-        std::cout << "\n\nScan complete! Press any key...";
-        std::cin.get();
-    }
-
-private:
-    bool checkDirectory() {
-        if(currentDirectory.empty()) {
-            std::cout << "Please set directory first!\n";
-            std::cout << "Press any key to continue...";
-            std::cin.get();
-            return false;
-        }
-        return true;
-    }
-    
-    void displayDuplicates(const std::map<std::string, std::vector<FileInfo>>& duplicates) {
-        if(duplicates.empty()) {
-            std::cout << "No duplicates found!\n";
-            return;
-        }
-        
-        std::cout << "\nDUPLICATES FOUND:\n";
-        std::cout << "-----------------\n";
-        
-        int groupNum = 1;
-        int totalDuplicates = 0;
-        
-        for(const auto& [hash, fileList] : duplicates) {
-            std::cout << "Group " << groupNum++ << " (" << fileList.size() << " files):\n";
-            for(const auto& file : fileList) {
-                std::string filename = std::filesystem::path(file.path).filename().string();
-                std::cout << "  - " << filename << " (" << file.size_bytes << " bytes, " << file.type << ")\n";
-            }
-            totalDuplicates += fileList.size() - 1;
-            std::cout << "\n";
-        }
-        
-        std::cout << "Total duplicate files: " << totalDuplicates << "\n";
-    }
-    
-    void displaySimilarFiles(const std::vector<std::vector<FileInfo>>& similarFiles) {
-        if(similarFiles.empty()) {
-            std::cout << "No similar files found!\n";
-            return;
-        }
-        
-        std::cout << "\nSIMILAR FILES FOUND:\n";
-        std::cout << "--------------------\n";
-        
-        int groupNum = 1;
-        
-        for(const auto& group : similarFiles) {
-            std::cout << "Similar Group " << groupNum++ << " (" << group.size() << " files):\n";
-            for(const auto& file : group) {
-                std::string filename = std::filesystem::path(file.path).filename().string();
-                std::cout << "  - " << filename << " (" << file.size_bytes << " bytes, " << file.type << ")\n";
-            }
-            std::cout << "\n";
-        }
-    }
-};
-
-// ---------------------------------------------------------
-// Main program
-// ---------------------------------------------------------
-int main() {
-    // Simple UTF-8 fix for Windows
-    #ifdef _WIN32
-    system("chcp 65001 > nul");
-    #endif
-    
-    ConsoleGUI gui;
-    gui.showMenu();
     return 0;
 }
