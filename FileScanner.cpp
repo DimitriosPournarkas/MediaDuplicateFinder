@@ -14,6 +14,27 @@
     #include <windows.h>
     #include <wincrypt.h>
 #endif
+// GUI imports 
+#include <iostream>
+#include <string>
+#include <filesystem>
+#include <algorithm>
+#include <map>
+#include <vector>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <cstdint>
+#include <set>
+#include <conio.h>  // Für _getch() auf Windows
+
+#ifdef _WIN32
+    #include <windows.h>
+    #include <wincrypt.h>
+#endif
+
+
+
 
 // stb_image for image loading
 #define STB_IMAGE_IMPLEMENTATION
@@ -573,3 +594,17 @@ int main() {
 
     return 0;
 }
+// GUI 
+
+
+
+// int main() {
+//     // Simple UTF-8 fix for Windows
+//     #ifdef _WIN32
+//     system("chcp 65001 > nul");
+//     #endif
+    
+//     ConsoleGUI gui;
+//     gui.showMenu();
+//     return 0;
+// }
