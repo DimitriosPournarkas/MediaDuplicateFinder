@@ -48,6 +48,19 @@ struct FileInfo {
 // ---------------------------------------------------------
 class SimilarityFinder {
 public:
+    // Python Excel Vergleich
+    bool areExcelSimilar(const FileInfo& xls1, const FileInfo& xls2) {
+    // Einfacher Fallback - Python zu komplex für automatische Erkennung
+    std::cout << "Excel content comparison disabled. Using name/size comparison." << std::endl;
+    
+    double sizeRatio = (double)std::min(xls1.size_bytes, xls2.size_bytes) 
+                     / std::max(xls1.size_bytes, xls2.size_bytes);
+    std::string name1 = fs::path(xls1.path).stem().string();
+    std::string name2 = fs::path(xls2.path).stem().string();
+    
+    return (sizeRatio > 0.8) && (calculateStringSimilarity(name1, name2) > 0.7);
+    }
+
     uint64_t calculateImageHash(const std::string& imagePath) {
         int width, height, channels;
         unsigned char* img = stbi_load(imagePath.c_str(), &width, &height, &channels, 1);
@@ -168,31 +181,48 @@ public:
     }
     
     bool areDocumentsSimilar(const FileInfo& doc1, const FileInfo& doc2) {
-        // Size similarity
-        double sizeRatio = (double)std::min(doc1.size_bytes, doc2.size_bytes) 
-                         / std::max(doc1.size_bytes, doc2.size_bytes);
-        
-        if (sizeRatio < 0.3) return false;
-        
-        // Filename similarity
-        std::string name1 = fs::path(doc1.path).stem().string();
-        std::string name2 = fs::path(doc2.path).stem().string();
-        
-        if (calculateStringSimilarity(name1, name2) > 0.7) {
-            return true;
-        }
-        
-        // Content similarity for text files
-        if (doc1.path.find(".txt") != std::string::npos || 
-            doc1.path.find(".csv") != std::string::npos) {
-            std::string content1 = extractTextContent(doc1);
-            std::string content2 = extractTextContent(doc2);
-            return calculateTextSimilarity(content1, content2) > 0.6;
-        }
-        
-        return false;
+    // Size similarity
+    double sizeRatio = (double)std::min(doc1.size_bytes, doc2.size_bytes) 
+                     / std::max(doc1.size_bytes, doc2.size_bytes);
+    
+    if (sizeRatio < 0.3) return false;
+    
+    // Excel content similarity
+    if ((doc1.path.find(".xlsx") != std::string::npos || 
+         doc1.path.find(".xls") != std::string::npos) &&
+        (doc2.path.find(".xlsx") != std::string::npos || 
+         doc2.path.find(".xls") != std::string::npos)) {
+        return areExcelSimilar(doc1, doc2);
     }
     
+    // Docx content similarity
+    if ((doc1.path.find(".docx") != std::string::npos) &&
+        (doc2.path.find(".docx") != std::string::npos)) {
+        return areWordSimilar(doc1, doc2);  
+    }
+    // Presentation content similarity
+    if ((doc1.path.find(".pptx") != std::string::npos) &&
+    (doc2.path.find(".pptx") != std::string::npos)) {
+    return arePowerPointSimilar(doc1, doc2);
+    }
+    // For other documents, use filename similarity
+    std::string name1 = fs::path(doc1.path).stem().string();
+    std::string name2 = fs::path(doc2.path).stem().string();
+    
+    if (calculateStringSimilarity(name1, name2) > 0.7) {
+        return true;
+    }
+    
+    // Content similarity for text files
+    if (doc1.path.find(".txt") != std::string::npos || 
+        doc1.path.find(".csv") != std::string::npos) {
+        std::string content1 = extractTextContent(doc1);
+        std::string content2 = extractTextContent(doc2);
+        return calculateTextSimilarity(content1, content2) > 0.6;
+    }
+    
+    return false;
+}
     bool areArchivesSimilar(const FileInfo& arch1, const FileInfo& arch2) {
         double sizeRatio = (double)std::min(arch1.size_bytes, arch2.size_bytes) 
                          / std::max(arch1.size_bytes, arch2.size_bytes);
@@ -202,13 +232,23 @@ public:
         
         return sizeRatio > 0.8 && calculateStringSimilarity(name1, name2) > 0.6;
     }
-    bool areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
-    // Use only size similarity for images
-    double sizeRatio = (double)std::min(img1.size_bytes, img2.size_bytes) 
-                     / std::max(img1.size_bytes, img2.size_bytes);
     
-    return sizeRatio > 0.8; // 80% size similarity
-    }    
+    bool areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
+        // Try perceptual hash first
+        uint64_t hash1 = calculateImageHash(img1.path);
+        uint64_t hash2 = calculateImageHash(img2.path);
+        
+        if (hash1 != 0 && hash2 != 0) {
+            int distance = hammingDistance(hash1, hash2);
+            return distance <= 10;  // Threshold: similar if <= 10 bits different
+        }
+        
+        // Fallback to size comparison
+        double sizeRatio = (double)std::min(img1.size_bytes, img2.size_bytes) 
+                         / std::max(img1.size_bytes, img2.size_bytes);
+        return sizeRatio > 0.7;
+    }
+    
     bool areAudioSimilar(const FileInfo& audio1, const FileInfo& audio2) {
         std::string name1 = fs::path(audio1.path).stem().string();
         std::string name2 = fs::path(audio2.path).stem().string();
@@ -229,7 +269,40 @@ public:
         // Very high similarity threshold
         return calculateStringSimilarity(name1, name2) > 0.9;
     }
+    bool areWordSimilar(const FileInfo& doc1, const FileInfo& doc2) {
+    std::string currentDir = fs::current_path().string();
     
+    #ifdef _WIN32
+        std::string command = "cd /d \"" + currentDir + "\" && python word_comparer.py \"" + doc1.path + "\" \"" + doc2.path + "\"";
+    #else
+        std::string command = "cd \"" + currentDir + "\" && python3 word_comparer.py \"" + doc1.path + "\" \"" + doc2.path + "\"";
+    #endif
+    
+    std::cout << "Comparing Word documents with Python..." << std::endl;
+    int result = system(command.c_str());
+    
+    if (result != 0) {
+        // Fallback to name/size comparison
+        std::string name1 = fs::path(doc1.path).stem().string();
+        std::string name2 = fs::path(doc2.path).stem().string();
+        return calculateStringSimilarity(name1, name2) > 0.7;
+    }
+    
+    return result == 0;
+    }
+    bool arePowerPointSimilar(const FileInfo& ppt1, const FileInfo& ppt2) {
+    std::string currentDir = fs::current_path().string();
+    
+    #ifdef _WIN32
+        std::string command = "cd /d \"" + currentDir + "\" && python powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\"";
+    #else
+        std::string command = "cd \"" + currentDir + "\" && python3 powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\"";
+    #endif
+    
+    std::cout << "Comparing PowerPoint presentations..." << std::endl;
+    int result = system(command.c_str());
+    return result == 0;
+    }
     bool areFilesSimilar(const FileInfo& file1, const FileInfo& file2) {
         if (file1.type != file2.type) return false;
         
