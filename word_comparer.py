@@ -5,7 +5,6 @@ import re
 
 def compare_word_files(file1, file2):
     try:
-        print(f"Comparing Word: {os.path.basename(file1)} vs {os.path.basename(file2)}")
         
         # Read Word documents
         doc1 = Document(file1)
@@ -17,12 +16,11 @@ def compare_word_files(file1, file2):
         
         # Calculate similarity
         similarity = calculate_text_similarity(text1, text2)
-        print(f"  Word content similarity: {similarity:.2f}")
         
         return similarity > 0.6  # 60% content similarity threshold
         
     except Exception as e:
-        print(f"Error comparing Word files: {e}")
+        
         return False
 
 def extract_text(doc):
@@ -58,7 +56,7 @@ def calculate_text_similarity(text1, text2):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python word_comparer.py <file1> <file2>")
+        
         sys.exit(1)
     
     file1, file2 = sys.argv[1], sys.argv[2]
