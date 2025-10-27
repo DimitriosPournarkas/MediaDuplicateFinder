@@ -4,7 +4,7 @@ import os
 
 def compare_excel_files(file1, file2):
     try:
-        print(f"Comparing: {os.path.basename(file1)} vs {os.path.basename(file2)}")
+        
         
         # Read Excel files
         df1 = pd.read_excel(file1, sheet_name=None)
@@ -22,13 +22,13 @@ def compare_excel_files(file1, file2):
                 sheet_similarity = compare_sheets(df1[sheet_name], df2[sheet_name])
                 total_similarity += sheet_similarity
                 sheet_count += 1
-                print(f"  Sheet '{sheet_name}': {sheet_similarity:.2f} similarity")
+               
         
         if sheet_count == 0:
             return False
             
         overall_similarity = total_similarity / sheet_count
-        print(f"  Overall similarity: {overall_similarity:.2f}")
+       
         
         return overall_similarity > 0.7  # 70% similarity threshold
         
@@ -65,7 +65,7 @@ def compare_sheets(df1, df2):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python excel_comparer.py <file1> <file2>")
+        
         sys.exit(1)
     
     file1, file2 = sys.argv[1], sys.argv[2]

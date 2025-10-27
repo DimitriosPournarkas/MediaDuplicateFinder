@@ -9,7 +9,6 @@ def compare_pptx_files(file1, file2):
         file1 = file1.encode('latin-1').decode('utf-8')
         file2 = file2.encode('latin-1').decode('utf-8')
         
-        print(f"Comparing PowerPoint: {os.path.basename(file1)} vs {os.path.basename(file2)}")
         
         # Read PowerPoint presentations
         prs1 = Presentation(file1)
@@ -21,12 +20,10 @@ def compare_pptx_files(file1, file2):
         
         # Calculate similarity
         similarity = calculate_text_similarity(text1, text2)
-        print(f"  PowerPoint content similarity: {similarity:.2f}")
         
         return similarity > 0.6
         
     except Exception as e:
-        print(f"Error comparing PowerPoint files: {e}")
         return False
 
 def extract_text(prs):
@@ -56,7 +53,7 @@ def calculate_text_similarity(text1, text2):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python powerpoint_comparer.py <file1> <file2>")
+        
         sys.exit(1)
     
     file1, file2 = sys.argv[1], sys.argv[2]
