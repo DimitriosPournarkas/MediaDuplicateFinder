@@ -33,7 +33,7 @@ def compare_excel_files(file1, file2):
         return overall_similarity > 0.7  # 70% similarity threshold
         
     except Exception as e:
-        print(f"Error comparing Excel files: {e}")
+        
         return False
 
 def compare_sheets(df1, df2):
