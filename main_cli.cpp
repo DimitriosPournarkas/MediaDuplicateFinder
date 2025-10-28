@@ -112,6 +112,36 @@ public:
         return hash;
     }
 
+    uint64_t calculateAverageHash(const std::string& imagePath) {
+        int width, height, channels;
+        unsigned char* img = stbi_load(imagePath.c_str(), &width, &height, &channels, 1);
+        if (!img) return 0;
+        
+        // Reduce to 8x8
+        const int hashSize = 8;
+        unsigned char resized[hashSize * hashSize];
+        
+        // Calculate average
+        int total = 0;
+        for (int i = 0; i < hashSize * hashSize; i++) {
+            int srcX = (i % hashSize) * width / hashSize;
+            int srcY = (i / hashSize) * height / hashSize;
+            resized[i] = img[srcY * width + srcX];
+            total += resized[i];
+        }
+        int average = total / (hashSize * hashSize);
+        
+        // Create hash based on average
+        uint64_t hash = 0;
+        for (int i = 0; i < hashSize * hashSize; i++) {
+            if (resized[i] > average) {
+                hash |= (1ULL << i);
+            }
+        }
+        
+        stbi_image_free(img);
+        return hash;
+    }
     int hammingDistance(uint64_t hash1, uint64_t hash2) {
         uint64_t diff = hash1 ^ hash2;
         int distance = 0;
@@ -244,20 +274,24 @@ public:
         return {similar, similar ? (sizeRatio + nameSim) / 2.0 : 0.0};
     }
     
-    std::pair<bool, double> areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
-        uint64_t hash1 = calculateImageHash(img1.path);
-        uint64_t hash2 = calculateImageHash(img2.path);
-        
-        if (hash1 == 0 || hash2 == 0) {
-            return {false, 0.0};
-        }
-        
-        int distance = hammingDistance(hash1, hash2);
-        double similarity = 1.0 - (distance / 64.0);
-        
-        bool similar = distance <= 30;
-        return {similar, similar ? similarity : 0.0};
+std::pair<bool, double> areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
+    uint64_t dhash1 = calculateImageHash(img1.path);
+    uint64_t dhash2 = calculateImageHash(img2.path);
+    uint64_t ahash1 = calculateAverageHash(img1.path);
+    uint64_t ahash2 = calculateAverageHash(img2.path);
+    
+    if (dhash1 == 0 || dhash2 == 0 || ahash1 == 0 || ahash2 == 0) {
+        return {false, 0.0};
     }
+    
+    int dDistance = hammingDistance(dhash1, dhash2);
+    int aDistance = hammingDistance(ahash1, ahash2);
+    
+    bool similar = (dDistance <= 8) || (aDistance <= 8);
+    double similarity = 1.0 - ((dDistance + aDistance) / 128.0);
+    
+    return {similar, similar ? similarity : 0.0};
+}
     
     std::pair<bool, double> areAudioSimilar(const FileInfo& audio1, const FileInfo& audio2) {
         std::string name1 = fs::path(audio1.path).stem().string();
