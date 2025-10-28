@@ -242,6 +242,23 @@ class DuplicateFinderGUI:
         if similar_count > 0:
             status_msg += f" and {similar_count} similar file groups"
         self.status_var.set(status_msg)
+
+    def get_file_priority(self, file_path):
+        """
+        Calculate priority for file retention
+        Lower number = higher priority to keep
+        Priority 1: Files in main directory
+        Priority 2: Files in subdirectories (sorted alphabetically)
+        """
+        directory = os.path.dirname(file_path)
+        scan_directory = self.dir_var.get()
+        
+        # Priority 1: Files in main scan directory (highest priority)
+        if directory == scan_directory:
+            return (0, "")
+        
+        # Priority 2: Files in subdirectories - sort alphabetically by full path
+        return (1, directory)  # Alphabetical sort will keep earliest dated folders
     
     def delete_all_duplicates(self):
         if not self.duplicate_groups:
@@ -249,37 +266,54 @@ class DuplicateFinderGUI:
             return
         
         total_to_delete = 0
-        for group_type, _, group in self.duplicate_groups:
-            if group_type == "EXACT":
-                total_to_delete += len(group) - 1
+        files_to_delete = []
+        keep_decisions = []  # For confirmation dialog
+        
+        # First: identify which files to keep/delete based on priority
+        for group_type, group_similarity, group in self.duplicate_groups:
+            if group_type == "EXACT" and len(group) > 1:
+                # Sort by priority: Main directory > Subfolders alphabetically
+                sorted_group = sorted(group, key=lambda x: self.get_file_priority(x[0]))
+                
+                # Keep the prioritized file (first in sorted list), delete the rest
+                keep_file = sorted_group[0]
+                delete_files = sorted_group[1:]
+                
+                keep_decisions.append(f"✓ Keep: {os.path.basename(keep_file[0])} ({os.path.dirname(keep_file[0])})")
+                
+                for file_path, _ in delete_files:
+                    files_to_delete.append(file_path)
+                    total_to_delete += 1
         
         if total_to_delete == 0:
             messagebox.showinfo("Info", "No exact duplicates to delete")
             return
         
-        confirm = messagebox.askyesno(
-            "⚠️ Confirm Deletion",
-            f"This will permanently delete {total_to_delete} EXACT duplicate files.\n\n"
-            "✅ One original will be kept for each group.\n"
-            "⚠️ Similar files will NOT be deleted.\n\n"
-            "Are you sure you want to continue?"
-        )
+        # Show confirmation with detailed decisions
+        confirmation_text = f"This will permanently delete {total_to_delete} EXACT duplicate files.\n\n"
+        confirmation_text += "Keeping decisions:\n" + "\n".join(keep_decisions[:5])  # Show first 5 decisions
+        if len(keep_decisions) > 5:
+            confirmation_text += f"\n... and {len(keep_decisions) - 5} more groups"
+        
+        confirmation_text += "\n\n✅ One original kept per group\n⚠️ Similar files will NOT be deleted"
+        
+        confirm = messagebox.askyesno("⚠️ Confirm Deletion", confirmation_text)
         
         if not confirm:
             return
         
+        # Execute deletion
         deleted_count = 0
         errors = []
         
-        for group_type, _, group in self.duplicate_groups:
-            if group_type == "EXACT" and len(group) > 1:
-                for file_path, _ in group[1:]:
-                    try:
-                        os.remove(file_path)
-                        deleted_count += 1
-                    except Exception as e:
-                        errors.append(f"{os.path.basename(file_path)}: {e}")
+        for file_path in files_to_delete:
+            try:
+                os.remove(file_path)
+                deleted_count += 1
+            except Exception as e:
+                errors.append(f"{os.path.basename(file_path)}: {e}")
         
+        # Show results
         if errors:
             error_msg = f"✅ Deleted {deleted_count} files\n\n⚠️ Errors encountered:\n\n" + "\n".join(errors[:5])
             if len(errors) > 5:
