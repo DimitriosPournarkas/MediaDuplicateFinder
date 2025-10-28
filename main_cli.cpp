@@ -255,7 +255,7 @@ public:
         int distance = hammingDistance(hash1, hash2);
         double similarity = 1.0 - (distance / 64.0);
         
-        bool similar = distance <= 10;
+        bool similar = distance <= 30;
         return {similar, similar ? similarity : 0.0};
     }
     
