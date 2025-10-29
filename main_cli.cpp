@@ -20,7 +20,8 @@
 #include "stb_image.h"
 
 namespace fs = std::filesystem;
-
+#include <cmath>
+#include <cstdint>
 // ---------------------------------------------------------
 // File information structures
 // ---------------------------------------------------------
@@ -142,6 +143,7 @@ public:
         stbi_image_free(img);
         return hash;
     }
+    
     int hammingDistance(uint64_t hash1, uint64_t hash2) {
         uint64_t diff = hash1 ^ hash2;
         int distance = 0;
