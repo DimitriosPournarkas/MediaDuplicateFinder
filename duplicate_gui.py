@@ -4,23 +4,30 @@ import subprocess
 import os
 import threading
 import time
-
+import queue
 class DuplicateFinderGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Duplicate File Finder - C++ Backend")
         self.root.geometry("1200x700")
-    
+
         current_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
         if os.name == 'nt':
             self.cpp_executable = os.path.join(current_dir, "duplicate_finder.exe")
         else:
             self.cpp_executable = os.path.join(current_dir, "duplicate_finder")
-    
+
         print(f"C++ executable path: {self.cpp_executable}")
-    
+
         self.scanning = False
+        
+        # NEW: Add these variables for live output processing
+        self.stdout_queue = queue.Queue()
+        self.stderr_queue = queue.Queue()
+        self.stdout_buffer = ""
+        self.stderr_buffer = ""
+        
         self.setup_ui()
         
     def setup_ui(self):
@@ -172,44 +179,126 @@ class DuplicateFinderGUI:
         if self.scanning:
             elapsed = int(time.time() - self.start_time)
             mins, secs = divmod(elapsed, 60)
-            self.status_var.set(f"Scanning... Elapsed time: {mins}m {secs}s")
+            current_status = self.status_var.get()
+            
+            # Only add elapsed time if no ETA is shown
+            if "ETA:" not in current_status:
+                self.status_var.set(f"{current_status} | Elapsed: {mins}m {secs}s")
+            
             self.root.after(1000, self.update_progress)
     
     def run_scan(self, directory):
+        """Run C++ scan with live progress updates"""
         try:
-            result = subprocess.run(
+            # Start process with live output
+            self.process = subprocess.Popen(
                 [self.cpp_executable, directory, "--similar"],
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=300
+                bufsize=1,  # Line buffered for real-time reading
+                universal_newlines=True
             )
             
-            self.root.after(0, self.scan_complete, result)
+            # Start threads to read stdout and stderr in real-time
+            stdout_thread = threading.Thread(target=self.read_stdout)
+            stderr_thread = threading.Thread(target=self.read_stderr)
             
-        except subprocess.TimeoutExpired:
-            self.root.after(0, lambda: messagebox.showerror("Error", "Scanning timed out after 5 minutes"))
-            self.scanning = False
+            stdout_thread.daemon = True
+            stderr_thread.daemon = True
+            
+            stdout_thread.start()
+            stderr_thread.start()
+            
+            # Start processing the output queues in GUI thread
+            self.process_queues()
+            
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to run C++ backend: {e}"))
             self.scanning = False
-    
-    def scan_complete(self, result):
+    def read_stdout(self):
+        """Read stdout in real-time for results"""
+        try:
+            for line in iter(self.process.stdout.readline, ''):
+                if line.strip():
+                    self.stdout_queue.put(line.strip())
+        except Exception as e:
+            print(f"Error reading stdout: {e}")
+
+    def read_stderr(self):
+        """Read stderr in real-time for progress updates"""
+        try:
+            for line in iter(self.process.stderr.readline, ''):
+                if line.strip():
+                    self.stderr_queue.put(line.strip())
+        except Exception as e:
+            print(f"Error reading stderr: {e}")
+
+    def process_queues(self):
+        """Process output queues in the main GUI thread"""
+        # Process all stderr messages (progress updates)
+        while not self.stderr_queue.empty():
+            try:
+                line = self.stderr_queue.get_nowait()
+                self.process_stderr_line(line)
+            except queue.Empty:
+                break
+        
+        # Process all stdout messages (results)
+        while not self.stdout_queue.empty():
+            try:
+                line = self.stdout_queue.get_nowait()
+                self.stdout_buffer += line + "\n"
+            except queue.Empty:
+                break
+        
+        # Check if process is still running
+        if self.process.poll() is None:
+            # Process still running, check again in 100ms
+            self.root.after(100, self.process_queues)
+        else:
+            # Process finished, complete the scan
+            self.root.after(100, self.scan_complete_final)
+
+    def process_stderr_line(self, line):
+        """Process progress lines and display in GUI"""
+        line = line.strip()
+        
+        # Progress indicators from C++ code
+        progress_indicators = [
+            "Calculating hashes for exact duplicates",
+            "Finding similar files", 
+            "Processed",
+            "Done calculating hashes",
+            "Done finding similar files",
+            "comparisons, ETA:"
+        ]
+        
+        if any(indicator in line for indicator in progress_indicators):
+            self.status_var.set(line)
+            self.root.update_idletasks()  # Update GUI immediately
+        
+        # Store for error reporting
+        self.stderr_buffer += line + "\n"
+
+    def scan_complete_final(self):
+        """Final completion handler after process ends"""
         self.scanning = False
         self.progress_bar.stop()
         self.progress_frame.pack_forget()
         
-        if result.returncode != 0:
-            messagebox.showerror("Error", f"C++ backend error:\n{result.stderr}")
+        # Check for errors
+        if self.process.returncode != 0:
+            error_msg = f"C++ backend error (code {self.process.returncode})"
+            if self.stderr_buffer:
+                error_msg += f"\n\n{self.stderr_buffer}"
+            messagebox.showerror("Error", error_msg)
             self.status_var.set("Scan failed")
             return
         
-        if result.stderr:
-            for line in result.stderr.split('\n'):
-                if line.strip() and any(keyword in line for keyword in ["Processed", "Finding", "Done", "Calculating"]):
-                    self.status_var.set(line.strip())
-                    self.root.update()
-        
-        self.parse_results(result.stdout)
+        # Parse and display results
+        self.parse_results(self.stdout_buffer)
+
     
     def parse_results(self, output):
         groups = []
