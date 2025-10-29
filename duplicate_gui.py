@@ -29,6 +29,7 @@ class DuplicateFinderGUI:
         self.total_comparisons = 0
         self.processed_files = 0
         self.processed_comparisons = 0
+        self.total_work = 0
         
         self.setup_ui()
         
@@ -148,19 +149,14 @@ class DuplicateFinderGUI:
             self.status_var.set(f"Selected directory: {directory}")
     def update_progress(self):
         if self.scanning:
-            elapsed = int(time.time() - self.start_time)
-            mins, secs = divmod(elapsed, 60)
-            
-            # Calculate combined progress
             total_done = self.processed_files + self.processed_comparisons
-            total_work = self.total_files + self.total_comparisons
+            total_work = getattr(self, 'total_work', 0)
             
             if total_work > 0:
                 percentage = int(100 * total_done / total_work)
-                self.status_var.set(f"Scanning... {total_done}/{total_work} ({percentage}%) - Elapsed: {mins}m {secs}s")
+                self.status_var.set(f"Scanning {total_done}/{total_work} ({percentage}%)")
             else:
-                # No data yet - just show elapsed time
-                self.status_var.set(f"Starting scan... Elapsed: {mins}m {secs}s")
+                self.status_var.set("Scanning...")
             
             self.root.after(1000, self.update_progress)
     def scan_duplicates(self):
@@ -281,27 +277,30 @@ class DuplicateFinderGUI:
         """Process progress lines from C++ and update counters"""
         line = line.strip()
         
+        # NEU: Parse total work
+        if line.startswith("TOTAL_WORK:"):
+            try:
+                self.total_work = int(line.split(':')[1])
+                self.processed_work = 0
+            except:
+                pass
+            return
+        
         try:
             if "Processed" in line and "/" in line:
-                # Extract numbers: "Processed 20/57 files" or "Processed 150/1200 comparisons"
                 parts = line.split()
                 for i, part in enumerate(parts):
                     if '/' in part:
                         nums = part.split('/')
                         current = int(nums[0])
-                        total = int(nums[1])
                         
-                        # Check if it's files or comparisons
                         if "files" in line:
                             self.processed_files = current
-                            self.total_files = total
                         elif "comparisons" in line:
                             self.processed_comparisons = current
-                            self.total_comparisons = total
                         break
                         
         except (ValueError, IndexError):
-            # If parsing fails, just ignore
             pass
     def scan_complete_final(self):
         """Final completion handler after process ends"""

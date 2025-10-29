@@ -594,8 +594,12 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     
+    // Start with just file count
+    size_t totalWork = files.size();
+    
     auto exactDuplicates = scanner.findExactDuplicates(files);
     
+    // Output exact duplicates
     for (const auto& [hash, fileList] : exactDuplicates) {
         if (fileList.size() > 1) {
             std::cout << "EXACT|1.0" << std::endl;
@@ -607,6 +611,7 @@ int main(int argc, char* argv[]) {
     }
     
     if (findSimilar) {
+        // Filter out exact duplicates
         std::set<std::string> exactDupPaths;
         for (const auto& [hash, fileList] : exactDuplicates) {
             for (const auto& file : fileList) {
@@ -620,6 +625,19 @@ int main(int argc, char* argv[]) {
                 filesForSimilarity.push_back(file);
             }
         }
+        
+        // NEU: Calculate comparisons AFTER filtering
+        std::map<std::string, int> filesPerType;
+        for (const auto& file : filesForSimilarity) {  // <-- filesForSimilarity statt files!
+            filesPerType[file.type]++;
+        }
+        
+        for (const auto& [type, count] : filesPerType) {
+            totalWork += count * (count - 1) / 2;
+        }
+        
+        // NEU: Output total work AFTER calculating everything
+        std::cerr << "TOTAL_WORK:" << totalWork << std::endl;
         
         auto similarFiles = scanner.findSimilarFiles(filesForSimilarity);
         
@@ -639,6 +657,9 @@ int main(int argc, char* argv[]) {
                 std::cout << "---GROUP---" << std::endl;
             }
         }
+    } else {
+        // If not finding similar, output total work now
+        std::cerr << "TOTAL_WORK:" << totalWork << std::endl;
     }
     
     return 0;
