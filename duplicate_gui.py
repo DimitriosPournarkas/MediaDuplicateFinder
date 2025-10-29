@@ -176,18 +176,6 @@ class DuplicateFinderGUI:
         thread.start()
         
     
-    def update_progress(self):
-        if self.scanning:
-            elapsed = int(time.time() - self.start_time)
-            mins, secs = divmod(elapsed, 60)
-            current_status = self.status_var.get()
-            
-            # Only add elapsed time if no ETA is shown
-            if "ETA:" not in current_status:
-                self.status_var.set(f"{current_status} | Elapsed: {mins}m {secs}s")
-            
-            self.root.after(1000, self.update_progress)
-    
     def run_scan(self, directory):
         """Run C++ scan with live progress updates"""
         try:
@@ -268,20 +256,9 @@ class DuplicateFinderGUI:
         # Store for error reporting
         self.stderr_buffer += line + "\n"
         
-        # Progress indicators from C++ code
-        progress_indicators = [
-            "Calculating hashes for exact duplicates",
-            "Finding similar files", 
-            "Processed",
-            "Done calculating hashes",
-            "Done finding similar files",
-            "comparisons, ETA:"
-        ]
-        
-        if any(indicator in line for indicator in progress_indicators):
-            
-            self.status_var.set(line)
-            self.root.update_idletasks()
+        # Simply show ALL progress lines from C++
+        self.status_var.set(line)
+        self.root.update_idletasks()
 
     def scan_complete_final(self):
         """Final completion handler after process ends"""
@@ -303,6 +280,10 @@ class DuplicateFinderGUI:
 
     
     def parse_results(self, output):
+        # TEMPORARY: Set status to "Processing results..." while parsing
+        self.status_var.set("Processing results...")
+        self.root.update_idletasks()
+        
         groups = []
         current_group = []
         group_type = "EXACT"
@@ -331,13 +312,19 @@ class DuplicateFinderGUI:
             groups.append((group_type, group_similarity, current_group))
         
         self.duplicate_groups = groups
+        
+        # DIRECTLY display results without intermediate message
         self.display_results()
-    
+
     def display_results(self):
         if not self.duplicate_groups:
             messagebox.showinfo("No Duplicates", "No duplicate or similar files found!")
             self.status_var.set("No duplicates found")
             return
+        
+        # Set status to "Displaying results..." during rendering
+        self.status_var.set("Displaying results...")
+        self.root.update_idletasks()
         
         exact_count = 0
         similar_count = 0
@@ -379,8 +366,8 @@ class DuplicateFinderGUI:
                     directory = os.path.dirname(file_path)
                     
                     file_item = self.tree.insert(group_item, "end", 
-                                               text=f"  📄 {filename}", 
-                                               values=(directory, size_str, sim_str))
+                                            text=f"  📄 {filename}", 
+                                            values=(directory, size_str, sim_str))
                     # Store full path for context menu
                     self.tree.set(file_item, "path", file_path)
                 
@@ -388,6 +375,7 @@ class DuplicateFinderGUI:
         
         self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
         
+        # FINAL status update
         status_msg = f"✅ Found {exact_count} exact duplicate groups"
         if similar_count > 0:
             status_msg += f" and {similar_count} similar file groups"
