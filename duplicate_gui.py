@@ -162,6 +162,10 @@ class DuplicateFinderGUI:
         self.clear_results()
         self.scanning = True
         
+        # RESET buffers for new scan
+        self.stdout_buffer = ""
+        self.stderr_buffer = ""
+        
         # Show progress bar
         self.progress_frame.pack(fill=tk.X, pady=5)
         self.progress_bar.start(10)
@@ -171,9 +175,6 @@ class DuplicateFinderGUI:
         thread.daemon = True
         thread.start()
         
-        # Start timer
-        self.start_time = time.time()
-        self.update_progress()
     
     def update_progress(self):
         if self.scanning:
@@ -264,6 +265,9 @@ class DuplicateFinderGUI:
         """Process progress lines and display in GUI"""
         line = line.strip()
         
+        # Store for error reporting
+        self.stderr_buffer += line + "\n"
+        
         # Progress indicators from C++ code
         progress_indicators = [
             "Calculating hashes for exact duplicates",
@@ -275,11 +279,9 @@ class DuplicateFinderGUI:
         ]
         
         if any(indicator in line for indicator in progress_indicators):
+            
             self.status_var.set(line)
-            self.root.update_idletasks()  # Update GUI immediately
-        
-        # Store for error reporting
-        self.stderr_buffer += line + "\n"
+            self.root.update_idletasks()
 
     def scan_complete_final(self):
         """Final completion handler after process ends"""
