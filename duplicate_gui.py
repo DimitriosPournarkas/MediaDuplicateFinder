@@ -256,10 +256,10 @@ class DuplicateFinderGUI:
         # Store for error reporting
         self.stderr_buffer += line + "\n"
         
-        # Simply show ALL progress lines from C++
-        self.status_var.set(line)
-        self.root.update_idletasks()
-
+        # Only show progress lines with numbers and ETA
+        if "Processed" in line and ("files" in line or "comparisons" in line) and "ETA:" in line:
+            self.status_var.set(line)
+            self.root.update_idletasks()
     def scan_complete_final(self):
         """Final completion handler after process ends"""
         self.scanning = False
