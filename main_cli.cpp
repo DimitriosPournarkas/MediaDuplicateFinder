@@ -367,26 +367,7 @@ public:
         return {false, 0.0};
     }
 };
-// Image file detection function
-// ---------------------------------------------------------
-bool isImageFile(const std::string& filepath) {
-    std::vector<std::string> imageExtensions = {
-        ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", 
-        ".tif", ".webp", ".heic", ".heif"
-    };
-    
-    std::string extension = filepath.substr(filepath.find_last_of("."));
-    
-    // Convert to lowercase for case-insensitive comparison
-    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-    
-    for (const auto& imgExt : imageExtensions) {
-        if (extension == imgExt) {
-            return true;
-        }
-    }
-    return false;
-}
+
 // ---------------------------------------------------------
 // FileScanner class
 // ---------------------------------------------------------
@@ -499,7 +480,7 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
     const std::vector<FileInfo>& files) {
 
     std::map<std::string, std::vector<FileInfo>> duplicates;
-    // std::cerr << "Calculating hashes for exact duplicates..." << std::endl;
+    std::cerr << "Calculating hashes for exact duplicates..." << std::endl;
 
     int processed = 0;
     auto startTime = std::chrono::steady_clock::now();
@@ -538,20 +519,25 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
     std::vector<std::vector<FileInfo>> similarGroups;
     std::vector<bool> processed(files.size(), false);
     
-    // std::cerr << "Finding similar files..." << std::endl;
+   
 
-    // Count only image files for progress calculation
-    size_t imageFiles = 0;
+    // Count comparisons per file type
+    std::map<std::string, int> filesPerType;
     for (const auto& file : files) {
-        if (isImageFile(file.path)) imageFiles++;
+        filesPerType[file.type]++;
     }
     
-    size_t totalComparisons = imageFiles * (imageFiles - 1) / 2;
+    // Calculate total comparisons for same-type files only
+    size_t totalComparisons = 0;
+    for (const auto& [type, count] : filesPerType) {
+        totalComparisons += count * (count - 1) / 2;
+    }
+    
     size_t doneComparisons = 0;
     auto startTime = std::chrono::steady_clock::now();
     
     for (size_t i = 0; i < files.size(); i++) {
-        if (processed[i] || !isImageFile(files[i].path)) continue;
+        if (processed[i]) continue;
         
         std::vector<FileInfo> group;
         FileInfo firstFile = files[i];
@@ -559,7 +545,8 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
         group.push_back(firstFile);
         
         for (size_t j = i + 1; j < files.size(); j++) {
-            if (!processed[j] && isImageFile(files[j].path)) {
+            //  Compare only equal files
+            if (!processed[j] && files[i].type == files[j].type) {
                 auto [similar, score] = similarityFinder.areFilesSimilar(files[i], files[j]);
                 doneComparisons++;
                 
@@ -584,7 +571,6 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
         if (group.size() > 1) similarGroups.push_back(group);
     }
     
-    std::cerr << "Done finding similar files!" << std::endl;
     return similarGroups;
 }
 

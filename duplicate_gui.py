@@ -256,9 +256,17 @@ class DuplicateFinderGUI:
         # Store for error reporting
         self.stderr_buffer += line + "\n"
         
-        # Only show progress lines with numbers and ETA
-        if "Processed" in line and ("files" in line or "comparisons" in line) and "ETA:" in line:
-            self.status_var.set(line)
+        # Show progress with context
+        if "Processed" in line and "ETA:" in line:
+            if "files" in line:
+                # Phase 1: Exact duplicates
+                self.status_var.set(f"🔍 Exact duplicates: {line}")
+            elif "comparisons" in line:
+                # Phase 2: Similar files  
+                self.status_var.set(f"🎯 Similar files: {line}")
+            else:
+                self.status_var.set(line)
+            
             self.root.update_idletasks()
     def scan_complete_final(self):
         """Final completion handler after process ends"""
