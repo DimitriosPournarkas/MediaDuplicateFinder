@@ -64,7 +64,7 @@ class DuplicateFinderGUI:
         self.progress_frame = ttk.Frame(main_frame)
         self.progress_frame.pack(fill=tk.X, pady=5)
         
-        self.progress_bar = ttk.Progressbar(self.progress_frame, mode='indeterminate')
+        self.progress_bar = ttk.Progressbar(self.progress_frame, mode='determinate', maximum=100)
         self.progress_bar.pack(fill=tk.X, pady=5)
         self.progress_frame.pack_forget()  # Hide initially
         
@@ -150,11 +150,11 @@ class DuplicateFinderGUI:
     def update_progress(self):
         if self.scanning:
             total_done = self.processed_files + self.processed_comparisons
-            total_work = getattr(self, 'total_work', 0)
             
-            if total_work > 0:
-                percentage = int(100 * total_done / total_work)
-                self.status_var.set(f"Scanning {total_done}/{total_work} ({percentage}%)")
+            if self.total_work > 0:
+                percentage = min(100, int(100 * total_done / self.total_work))
+                self.progress_bar['value'] = percentage
+                self.status_var.set(f"Scanning {total_done}/{self.total_work} ({percentage}%)")
             else:
                 self.status_var.set("Scanning...")
             
@@ -185,10 +185,11 @@ class DuplicateFinderGUI:
         self.total_comparisons = 0
         self.processed_files = 0
         self.processed_comparisons = 0
+        self.total_work = 0
         
-        # Show progress bar
+        # Show progress bar - WICHTIG: OHNE .start()!
         self.progress_frame.pack(fill=tk.X, pady=5)
-        self.progress_bar.start(10)
+        self.progress_bar['value'] = 0  # Start bei 0%
         
         # Run scan in separate thread
         thread = threading.Thread(target=self.run_scan, args=(directory,))
@@ -198,7 +199,6 @@ class DuplicateFinderGUI:
         # NEW: Start timer and progress updates
         self.start_time = time.time()
         self.update_progress()
-        
     
     def run_scan(self, directory):
         """Run C++ scan with live progress updates"""
