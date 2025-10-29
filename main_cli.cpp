@@ -153,6 +153,68 @@ public:
         }
         return distance;
     }
+//     uint64_t calculatePerceptualHash(const std::string& imagePath) {
+//     int width, height, channels;
+//     unsigned char* img = stbi_load(imagePath.c_str(), &width, &height, &channels, 1);
+//     if (!img) return 0;
+
+//     const int size = 32;
+//     const int smallSize = 8;
+
+//     // reduce to 32x32
+//     unsigned char resized[size * size];
+//     for (int y = 0; y < size; ++y) {
+//         for (int x = 0; x < size; ++x) {
+//             int srcX = x * width / size;
+//             int srcY = y * height / size;
+//             resized[y * size + x] = img[srcY * width + srcX];
+//         }
+//     }
+
+//     stbi_image_free(img);
+
+//     //  convert into float-Matrix 
+//     double pixels[size][size];
+//     for (int y = 0; y < size; ++y)
+//         for (int x = 0; x < size; ++x)
+//             pixels[y][x] = static_cast<double>(resized[y * size + x]);
+
+//     //  DCT
+//     double dct[size][size];
+//     for (int u = 0; u < size; ++u) {
+//         for (int v = 0; v < size; ++v) {
+//             double sum = 0.0;
+//             for (int y = 0; y < size; ++y) {
+//                 for (int x = 0; x < size; ++x) {
+//                     sum += pixels[y][x] *
+//                            cos(((2 * x + 1) * v * M_PI) / (2 * size)) *
+//                            cos(((2 * y + 1) * u * M_PI) / (2 * size));
+//                 }
+//             }
+//             double cu = (u == 0) ? (1.0 / sqrt(2)) : 1.0;
+//             double cv = (v == 0) ? (1.0 / sqrt(2)) : 1.0;
+//             dct[u][v] = 0.25 * cu * cv * sum;
+//         }
+//     }
+
+
+//     double total = 0.0;
+//     for (int y = 0; y < smallSize; ++y)
+//         for (int x = 0; x < smallSize; ++x)
+//             total += dct[y][x];
+//     double avg = total / (smallSize * smallSize);
+
+//     // built Hash  (64 Bits)
+//     uint64_t hash = 0;
+//     for (int i = 0; i < smallSize * smallSize; ++i) {
+//         int y = i / smallSize;
+//         int x = i % smallSize;
+//         if (dct[y][x] > avg)
+//             hash |= (1ULL << i);
+//     }
+
+//     return hash;
+// }
 
     double calculateStringSimilarity(const std::string& s1, const std::string& s2) {
         std::string s1_lower = s1, s2_lower = s2;
