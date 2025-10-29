@@ -274,24 +274,27 @@ public:
         return {similar, similar ? (sizeRatio + nameSim) / 2.0 : 0.0};
     }
     
-std::pair<bool, double> areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
+    std::pair<bool, double> areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
     uint64_t dhash1 = calculateImageHash(img1.path);
     uint64_t dhash2 = calculateImageHash(img2.path);
     uint64_t ahash1 = calculateAverageHash(img1.path);
     uint64_t ahash2 = calculateAverageHash(img2.path);
-    
-    if (dhash1 == 0 || dhash2 == 0 || ahash1 == 0 || ahash2 == 0) {
+
+    if (!dhash1 || !dhash2 || !ahash1 || !ahash2)
         return {false, 0.0};
-    }
-    
+
     int dDistance = hammingDistance(dhash1, dhash2);
     int aDistance = hammingDistance(ahash1, ahash2);
-    
-    bool similar = (dDistance <= 8) || (aDistance <= 8);
-    double similarity = 1.0 - ((dDistance + aDistance) / 128.0);
-    
+
+    double dSim = 1.0 - (dDistance / 64.0);
+    double aSim = 1.0 - (aDistance / 64.0);
+    double similarity = (dSim + aSim) / 2.0;
+
+    bool similar = ((dDistance + aDistance) / 2.0) <= 15;
+
     return {similar, similar ? similarity : 0.0};
-}
+    }
+
     
     std::pair<bool, double> areAudioSimilar(const FileInfo& audio1, const FileInfo& audio2) {
         std::string name1 = fs::path(audio1.path).stem().string();
