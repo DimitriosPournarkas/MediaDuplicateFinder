@@ -10,16 +10,12 @@ class DuplicateFinderGUI:
         self.root = root
         self.root.title("Duplicate File Finder - C++ Backend")
         self.root.geometry("1200x700")
-
         current_dir = os.path.dirname(os.path.abspath(__file__))
-
         if os.name == 'nt':
             self.cpp_executable = os.path.join(current_dir, "duplicate_finder.exe")
         else:
             self.cpp_executable = os.path.join(current_dir, "duplicate_finder")
-
         print(f"C++ executable path: {self.cpp_executable}")
-
         self.scanning = False
         
         # NEW: Add these variables for live output processing
@@ -27,6 +23,12 @@ class DuplicateFinderGUI:
         self.stderr_queue = queue.Queue()
         self.stdout_buffer = ""
         self.stderr_buffer = ""
+        
+        # NEW: Progress tracking variables
+        self.total_files = 0
+        self.total_comparisons = 0
+        self.processed_files = 0
+        self.processed_comparisons = 0
         
         self.setup_ui()
         
@@ -144,7 +146,23 @@ class DuplicateFinderGUI:
         if directory:
             self.dir_var.set(directory)
             self.status_var.set(f"Selected directory: {directory}")
-    
+    def update_progress(self):
+        if self.scanning:
+            elapsed = int(time.time() - self.start_time)
+            mins, secs = divmod(elapsed, 60)
+            
+            # Calculate combined progress
+            total_done = self.processed_files + self.processed_comparisons
+            total_work = self.total_files + self.total_comparisons
+            
+            if total_work > 0:
+                percentage = int(100 * total_done / total_work)
+                self.status_var.set(f"Scanning... {total_done}/{total_work} ({percentage}%) - Elapsed: {mins}m {secs}s")
+            else:
+                # No data yet - just show elapsed time
+                self.status_var.set(f"Starting scan... Elapsed: {mins}m {secs}s")
+            
+            self.root.after(1000, self.update_progress)
     def scan_duplicates(self):
         directory = self.dir_var.get()
         if not directory or not os.path.exists(directory):
@@ -166,6 +184,12 @@ class DuplicateFinderGUI:
         self.stdout_buffer = ""
         self.stderr_buffer = ""
         
+        # NEW: Reset progress counters
+        self.total_files = 0
+        self.total_comparisons = 0
+        self.processed_files = 0
+        self.processed_comparisons = 0
+        
         # Show progress bar
         self.progress_frame.pack(fill=tk.X, pady=5)
         self.progress_bar.start(10)
@@ -174,6 +198,10 @@ class DuplicateFinderGUI:
         thread = threading.Thread(target=self.run_scan, args=(directory,))
         thread.daemon = True
         thread.start()
+        
+        # NEW: Start timer and progress updates
+        self.start_time = time.time()
+        self.update_progress()
         
     
     def run_scan(self, directory):
@@ -250,24 +278,31 @@ class DuplicateFinderGUI:
             self.root.after(100, self.scan_complete_final)
 
     def process_stderr_line(self, line):
-        """Process progress lines and display in GUI"""
+        """Process progress lines from C++ and update counters"""
         line = line.strip()
         
-        # Store for error reporting
-        self.stderr_buffer += line + "\n"
-        
-        # Show progress with context
-        if "Processed" in line and "ETA:" in line:
-            if "files" in line:
-                # Phase 1: Exact duplicates
-                self.status_var.set(f"🔍 Exact duplicates: {line}")
-            elif "comparisons" in line:
-                # Phase 2: Similar files  
-                self.status_var.set(f"🎯 Similar files: {line}")
-            else:
-                self.status_var.set(line)
-            
-            self.root.update_idletasks()
+        try:
+            if "Processed" in line and "/" in line:
+                # Extract numbers: "Processed 20/57 files" or "Processed 150/1200 comparisons"
+                parts = line.split()
+                for i, part in enumerate(parts):
+                    if '/' in part:
+                        nums = part.split('/')
+                        current = int(nums[0])
+                        total = int(nums[1])
+                        
+                        # Check if it's files or comparisons
+                        if "files" in line:
+                            self.processed_files = current
+                            self.total_files = total
+                        elif "comparisons" in line:
+                            self.processed_comparisons = current
+                            self.total_comparisons = total
+                        break
+                        
+        except (ValueError, IndexError):
+            # If parsing fails, just ignore
+            pass
     def scan_complete_final(self):
         """Final completion handler after process ends"""
         self.scanning = False
