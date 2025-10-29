@@ -153,68 +153,7 @@ public:
         }
         return distance;
     }
-//     uint64_t calculatePerceptualHash(const std::string& imagePath) {
-//     int width, height, channels;
-//     unsigned char* img = stbi_load(imagePath.c_str(), &width, &height, &channels, 1);
-//     if (!img) return 0;
 
-//     const int size = 32;
-//     const int smallSize = 8;
-
-//     // reduce to 32x32
-//     unsigned char resized[size * size];
-//     for (int y = 0; y < size; ++y) {
-//         for (int x = 0; x < size; ++x) {
-//             int srcX = x * width / size;
-//             int srcY = y * height / size;
-//             resized[y * size + x] = img[srcY * width + srcX];
-//         }
-//     }
-
-//     stbi_image_free(img);
-
-//     //  convert into float-Matrix 
-//     double pixels[size][size];
-//     for (int y = 0; y < size; ++y)
-//         for (int x = 0; x < size; ++x)
-//             pixels[y][x] = static_cast<double>(resized[y * size + x]);
-
-//     //  DCT
-//     double dct[size][size];
-//     for (int u = 0; u < size; ++u) {
-//         for (int v = 0; v < size; ++v) {
-//             double sum = 0.0;
-//             for (int y = 0; y < size; ++y) {
-//                 for (int x = 0; x < size; ++x) {
-//                     sum += pixels[y][x] *
-//                            cos(((2 * x + 1) * v * M_PI) / (2 * size)) *
-//                            cos(((2 * y + 1) * u * M_PI) / (2 * size));
-//                 }
-//             }
-//             double cu = (u == 0) ? (1.0 / sqrt(2)) : 1.0;
-//             double cv = (v == 0) ? (1.0 / sqrt(2)) : 1.0;
-//             dct[u][v] = 0.25 * cu * cv * sum;
-//         }
-//     }
-
-
-//     double total = 0.0;
-//     for (int y = 0; y < smallSize; ++y)
-//         for (int x = 0; x < smallSize; ++x)
-//             total += dct[y][x];
-//     double avg = total / (smallSize * smallSize);
-
-//     // built Hash  (64 Bits)
-//     uint64_t hash = 0;
-//     for (int i = 0; i < smallSize * smallSize; ++i) {
-//         int y = i / smallSize;
-//         int x = i % smallSize;
-//         if (dct[y][x] > avg)
-//             hash |= (1ULL << i);
-//     }
-
-//     return hash;
-// }
 
     double calculateStringSimilarity(const std::string& s1, const std::string& s2) {
         std::string s1_lower = s1, s2_lower = s2;
@@ -541,21 +480,30 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
     const std::vector<FileInfo>& files) {
 
     std::map<std::string, std::vector<FileInfo>> duplicates;
-    std::cerr << "Calculating hashes..." << std::endl;
+    std::cerr << "Calculating hashes for exact duplicates..." << std::endl;
 
     int processed = 0;
+    auto startTime = std::chrono::steady_clock::now();
+    
     for (const auto& file : files) {
         std::string hash = calculateHash(file.path);
         if (!hash.empty()) duplicates[hash].push_back(file);
 
         processed++;
-        if (processed % 10 == 0) {
-            std::cerr << "Processed " << processed << "/" << files.size() << " files..." << std::endl;
+        
+        // Print progress every 20 files
+        if (processed % 20 == 0) {
+            auto now = std::chrono::steady_clock::now();
+            double elapsed = std::chrono::duration<double>(now - startTime).count();
+            double eta = elapsed / processed * (files.size() - processed);
+            std::cerr << "Processed " << processed << "/" << files.size()
+                      << " files, ETA: " << (int)eta << "s" << std::endl;
         }
     }
 
     std::cerr << "Done calculating hashes!" << std::endl;
 
+    // Remove entries with less than 2 files
     for (auto it = duplicates.begin(); it != duplicates.end();) {
         if (it->second.size() < 2)
             it = duplicates.erase(it);
@@ -566,11 +514,16 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
     return duplicates;
 }
 
+
 std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vector<FileInfo>& files) {
     std::vector<std::vector<FileInfo>> similarGroups;
     std::vector<bool> processed(files.size(), false);
     
     std::cerr << "Finding similar files..." << std::endl;
+
+    size_t totalComparisons = files.size() * (files.size() - 1) / 2;
+    size_t doneComparisons = 0;
+    auto startTime = std::chrono::steady_clock::now();
     
     for (size_t i = 0; i < files.size(); i++) {
         if (processed[i]) continue;
@@ -583,26 +536,30 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
         for (size_t j = i + 1; j < files.size(); j++) {
             if (!processed[j]) {
                 auto [similar, score] = similarityFinder.areFilesSimilar(files[i], files[j]);
+                doneComparisons++;
+                
                 if (similar) {
                     FileInfo similarFile = files[j];
                     similarFile.similarity_score = score;
                     group.push_back(similarFile);
                     processed[j] = true;
                 }
+
+                // Print progress every 20 comparisons
+                if (doneComparisons % 20 == 0) {
+                    auto now = std::chrono::steady_clock::now();
+                    double elapsed = std::chrono::duration<double>(now - startTime).count();
+                    double eta = elapsed / doneComparisons * (totalComparisons - doneComparisons);
+                    std::cerr << "Processed " << doneComparisons << "/" << totalComparisons
+                              << " comparisons, ETA: " << (int)eta << "s" << std::endl;
+                }
             }
         }
         
-        if (group.size() > 1) {
-            similarGroups.push_back(group);
-        }
-        
-        if ((i + 1) % 10 == 0) {
-            std::cerr << "Processed " << (i + 1) << "/" << files.size() << " files..." << std::endl;
-        }
+        if (group.size() > 1) similarGroups.push_back(group);
     }
     
     std::cerr << "Done finding similar files!" << std::endl;
-    
     return similarGroups;
 }
 
