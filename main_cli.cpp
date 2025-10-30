@@ -223,47 +223,38 @@ public:
         return total > 0 ? (double)common / total : 0.0;
     }
     
-    std::pair<bool, double> areDocumentsSimilar(const FileInfo& doc1, const FileInfo& doc2) {
-        double sizeRatio = (double)std::min(doc1.size_bytes, doc2.size_bytes) 
-                         / std::max(doc1.size_bytes, doc2.size_bytes);
-        
-        if (sizeRatio < 0.3) return {false, 0.0};
-        
-        if ((doc1.path.find(".xlsx") != std::string::npos || 
-             doc1.path.find(".xls") != std::string::npos) &&
-            (doc2.path.find(".xlsx") != std::string::npos || 
-             doc2.path.find(".xls") != std::string::npos)) {
-            return areExcelSimilar(doc1, doc2);
-        }
-        
-        if ((doc1.path.find(".docx") != std::string::npos) &&
-            (doc2.path.find(".docx") != std::string::npos)) {
-            return areWordSimilar(doc1, doc2);  
-        }
-        
-        if ((doc1.path.find(".pptx") != std::string::npos) &&
-            (doc2.path.find(".pptx") != std::string::npos)) {
-            return arePowerPointSimilar(doc1, doc2);
-        }
-        
-        std::string name1 = fs::path(doc1.path).stem().string();
-        std::string name2 = fs::path(doc2.path).stem().string();
-        double nameSim = calculateStringSimilarity(name1, name2);
-        
-        if (nameSim > 0.7) {
-            return {true, nameSim};
-        }
-        
-        if (doc1.path.find(".txt") != std::string::npos || 
-            doc1.path.find(".csv") != std::string::npos) {
-            std::string content1 = extractTextContent(doc1);
-            std::string content2 = extractTextContent(doc2);
-            double textSim = calculateTextSimilarity(content1, content2);
-            return {textSim > 0.6, textSim};
-        }
-        
-        return {false, 0.0};
+std::pair<bool, double> areDocumentsSimilar(const FileInfo& doc1, const FileInfo& doc2) {
+    // This function is now only used for "text" type files (txt, pdf, csv)
+    // Word, Excel, PowerPoint have their own types and comparison functions
+    
+    double sizeRatio = (double)std::min(doc1.size_bytes, doc2.size_bytes) 
+                     / std::max(doc1.size_bytes, doc2.size_bytes);
+    
+    if (sizeRatio < 0.3) return {false, 0.0};
+    
+    // Remove all Excel/Word/PowerPoint checks - they are handled by separate types
+    // Only handle text-based files here
+    
+    std::string name1 = fs::path(doc1.path).stem().string();
+    std::string name2 = fs::path(doc2.path).stem().string();
+    double nameSim = calculateStringSimilarity(name1, name2);
+    
+    if (nameSim > 0.7) {
+        return {true, nameSim};
     }
+    
+    // Compare content for text files
+    if (doc1.path.find(".txt") != std::string::npos || 
+        doc1.path.find(".csv") != std::string::npos ||
+        doc1.path.find(".pdf") != std::string::npos) {
+        std::string content1 = extractTextContent(doc1);
+        std::string content2 = extractTextContent(doc2);
+        double textSim = calculateTextSimilarity(content1, content2);
+        return {textSim > 0.6, textSim};
+    }
+    
+    return {false, 0.0};
+}
     
     std::pair<bool, double> areArchivesSimilar(const FileInfo& arch1, const FileInfo& arch2) {
         double sizeRatio = (double)std::min(arch1.size_bytes, arch2.size_bytes) 
@@ -338,35 +329,55 @@ public:
         return {result == 0, 0.85};
     }
     
+// std::pair<bool, double> arePowerPointSimilar(const FileInfo& ppt1, const FileInfo& ppt2) {
+//     std::string currentDir = fs::current_path().string();
+    
+//     #ifdef _WIN32
+//         std::string command = "cd /d \"" + currentDir + "\" && python powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\" 2>nul";
+//     #else
+//         std::string command = "cd \"" + currentDir + "\" && python3 powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\" 2>/dev/null";
+//     #endif
+    
+//     int result = system(command.c_str());
+//     return {result == 0, result == 0 ? 0.85 : 0.0};
+//     }
 std::pair<bool, double> arePowerPointSimilar(const FileInfo& ppt1, const FileInfo& ppt2) {
+    // Use current directory and simple command
     std::string currentDir = fs::current_path().string();
     
     #ifdef _WIN32
-        std::string command = "cd /d \"" + currentDir + "\" && python powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\" 2>nul";
+        // Set UTF-8 code page for proper encoding
+        std::string command = "chcp 65001 >nul && python \"" + currentDir + "\\powerpoint_comparer.py\" \"" + ppt1.path + "\" \"" + ppt2.path + "\"";
     #else
-        std::string command = "cd \"" + currentDir + "\" && python3 powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\" 2>/dev/null";
+        std::string command = "python3 \"" + currentDir + "/powerpoint_comparer.py\" \"" + ppt1.path + "\" \"" + ppt2.path + "\"";
     #endif
     
     int result = system(command.c_str());
+    
     return {result == 0, result == 0 ? 0.85 : 0.0};
+}
+std::pair<bool, double> areFilesSimilar(const FileInfo& file1, const FileInfo& file2) {
+    if (file1.type != file2.type) return {false, 0.0};
+    
+    if (file1.type == "image") {
+        return areImagesSimilar(file1, file2);
+    } else if (file1.type == "audio") {
+        return areAudioSimilar(file1, file2);
+    } else if (file1.type == "word") {
+        return areWordSimilar(file1, file2);           // Direct Word comparison
+    } else if (file1.type == "excel") {
+        return areExcelSimilar(file1, file2);          // Direct Excel comparison
+    } else if (file1.type == "powerpoint") {
+        return arePowerPointSimilar(file1, file2);     // Direct PowerPoint comparison
+    } else if (file1.type == "text") {
+        return areDocumentsSimilar(file1, file2);      // Only for text files
+    } else if (file1.type == "other") {
+        return areArchivesSimilar(file1, file2);
     }
-
-    std::pair<bool, double> areFilesSimilar(const FileInfo& file1, const FileInfo& file2) {
-        if (file1.type != file2.type) return {false, 0.0};
-        
-        if (file1.type == "image") {
-            return areImagesSimilar(file1, file2);
-        } else if (file1.type == "audio") {
-            return areAudioSimilar(file1, file2);
-        } else if (file1.type == "document") {
-            return areDocumentsSimilar(file1, file2);
-        } else if (file1.type == "other") {
-            return areArchivesSimilar(file1, file2);
-        }
-        
-        return {false, 0.0};
-    }
-};
+    
+    return {false, 0.0};
+}
+}; 
 
 // ---------------------------------------------------------
 // FileScanner class
@@ -399,17 +410,22 @@ std::vector<FileInfo> FileScanner::findFiles(const std::string& directory) {
                                ext == ".bmp" || ext == ".webp" || ext == ".tiff");
                 bool is_audio = (ext == ".mp3" || ext == ".flac" || ext == ".wav" ||
                                  ext == ".aac" || ext == ".ogg" || ext == ".m4a");
-                bool is_doc = (ext == ".txt" || ext == ".pdf" || ext == ".docx" ||
-                               ext == ".xlsx" || ext == ".csv" || ext == ".pptx");
+                bool is_word = (ext == ".docx" || ext == ".doc");        // 🟢 Word only
+                bool is_excel = (ext == ".xlsx" || ext == ".xls" || ext == ".csv"); // 🟢 Excel + CSV
+                bool is_ppt = (ext == ".pptx" || ext == ".ppt");         // 🟢 PowerPoint only
+                bool is_text = (ext == ".txt" || ext == ".pdf");         // 🟢 Text/PDF only
                 bool is_other = (ext == ".zip" || ext == ".rar" || ext == ".7z" || ext == ".exe");
 
-                if (is_img || is_audio || is_doc || is_other) {
+                if (is_img || is_audio || is_word || is_excel || is_ppt || is_text || is_other) {
                     FileInfo info;
                     info.path = path;
                     info.size_bytes = entry.file_size();
                     if (is_img) info.type = "image";
                     else if (is_audio) info.type = "audio";
-                    else if (is_doc) info.type = "document";
+                    else if (is_word) info.type = "word";         // 🟢 Word type
+                    else if (is_excel) info.type = "excel";       // 🟢 Excel type  
+                    else if (is_ppt) info.type = "powerpoint";    // 🟢 PowerPoint type
+                    else if (is_text) info.type = "text";         // 🟢 Text type
                     else info.type = "other";
 
                     results.push_back(info);
