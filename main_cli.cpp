@@ -378,7 +378,39 @@ std::pair<bool, double> areFilesSimilar(const FileInfo& file1, const FileInfo& f
 
     return {false, 0.0};
 }
+std::map<std::string, std::map<std::string, double>> compareOfficeFiles(
+    const std::vector<FileInfo>& officeFiles) 
+{
+    std::map<std::string, std::map<std::string, double>> result;
 
+    for (size_t i = 0; i < officeFiles.size(); i++) {
+        for (size_t j = i + 1; j < officeFiles.size(); j++) {
+            double score = 0.0;
+            bool similar = false;
+
+            if (officeFiles[i].type == "word" && officeFiles[j].type == "word") {
+                auto [sim, s] = areWordSimilar(officeFiles[i], officeFiles[j]);
+                similar = sim;
+                score = s;
+            } else if (officeFiles[i].type == "excel" && officeFiles[j].type == "excel") {
+                auto [sim, s] = areExcelSimilar(officeFiles[i], officeFiles[j]);
+                similar = sim;
+                score = s;
+            } else if (officeFiles[i].type == "powerpoint" && officeFiles[j].type == "powerpoint") {
+                auto [sim, s] = arePowerPointSimilar(officeFiles[i], officeFiles[j]);
+                similar = sim;
+                score = s;
+            }
+
+            if (similar) {
+                result[officeFiles[i].path][officeFiles[j].path] = score;
+                result[officeFiles[j].path][officeFiles[i].path] = score;
+            }
+        }
+    }
+
+    return result;
+}
 
 }; 
 
@@ -535,61 +567,91 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
 std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vector<FileInfo>& files) {
     std::vector<std::vector<FileInfo>> similarGroups;
     std::vector<bool> processed(files.size(), false);
-    
-   
 
-    // Count comparisons per file type
+    // --- Collect all Office files (Word, Excel, PowerPoint) ---
+    std::vector<FileInfo> officeFiles;
+    for (const auto& file : files) {
+        if (file.type == "word" || file.type == "excel" || file.type == "powerpoint") {
+            officeFiles.push_back(file);
+        }
+    }
+
+    // --- One-time comparison for all Office files ---
+    auto officeSimilarMap = similarityFinder.compareOfficeFiles(officeFiles);
+
+    // --- Count comparisons per file type for progress tracking ---
     std::map<std::string, int> filesPerType;
     for (const auto& file : files) {
         filesPerType[file.type]++;
     }
-    
-    // Calculate total comparisons for same-type files only
+
     size_t totalComparisons = 0;
     for (const auto& [type, count] : filesPerType) {
         totalComparisons += count * (count - 1) / 2;
     }
-    
+
     size_t doneComparisons = 0;
     auto startTime = std::chrono::steady_clock::now();
-    
+
+    // --- Main loop: build similar file groups ---
     for (size_t i = 0; i < files.size(); i++) {
         if (processed[i]) continue;
-        
+
         std::vector<FileInfo> group;
         FileInfo firstFile = files[i];
         firstFile.similarity_score = 1.0;
         group.push_back(firstFile);
-        
-        for (size_t j = i + 1; j < files.size(); j++) {
-            //  Compare only equal files
-            if (!processed[j] && files[i].type == files[j].type) {
-                auto [similar, score] = similarityFinder.areFilesSimilar(files[i], files[j]);
-                doneComparisons++;
-                
-                if (similar) {
-                    FileInfo similarFile = files[j];
-                    similarFile.similarity_score = score;
-                    group.push_back(similarFile);
-                    processed[j] = true;
-                }
 
-                // Print progress every 20 comparisons
-                if (doneComparisons % 20 == 0) {
-                    auto now = std::chrono::steady_clock::now();
-                    double elapsed = std::chrono::duration<double>(now - startTime).count();
-                    double eta = elapsed / doneComparisons * (totalComparisons - doneComparisons);
-                    std::cerr << "Processed " << doneComparisons << "/" << totalComparisons
-                              << " comparisons, ETA: " << (int)eta << "s" << std::endl;
+        for (size_t j = i + 1; j < files.size(); j++) {
+            if (processed[j]) continue;
+
+            double score = 0.0;
+            bool similar = false;
+
+            // --- Handle Office files using precomputed map ---
+            if ((files[i].type == "word" || files[i].type == "excel" || files[i].type == "powerpoint") &&
+                (files[j].type == "word" || files[j].type == "excel" || files[j].type == "powerpoint")) {
+                
+                auto it1 = officeSimilarMap.find(files[i].path);
+                if (it1 != officeSimilarMap.end()) {
+                    auto it2 = it1->second.find(files[j].path);
+                    if (it2 != it1->second.end()) {
+                        score = it2->second;
+                        similar = true;
+                    }
                 }
+            } 
+            else {
+                // --- Non-Office files: use regular comparison ---
+                auto [sim, s] = similarityFinder.areFilesSimilar(files[i], files[j]);
+                similar = sim;
+                score = s;
+            }
+
+            if (similar) {
+                FileInfo similarFile = files[j];
+                similarFile.similarity_score = score;
+                group.push_back(similarFile);
+                processed[j] = true;
+            }
+
+            // --- Print progress every 20 comparisons ---
+            doneComparisons++;
+            if (doneComparisons % 20 == 0) {
+                auto now = std::chrono::steady_clock::now();
+                double elapsed = std::chrono::duration<double>(now - startTime).count();
+                double eta = elapsed / doneComparisons * (totalComparisons - doneComparisons);
+                std::cerr << "Processed " << doneComparisons << "/" << totalComparisons
+                          << " comparisons, ETA: " << (int)eta << "s" << std::endl;
             }
         }
-        
+
         if (group.size() > 1) similarGroups.push_back(group);
     }
-    
+
     return similarGroups;
 }
+
 
 // ---------------------------------------------------------
 // Main function
