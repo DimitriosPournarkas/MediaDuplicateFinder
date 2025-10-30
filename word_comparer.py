@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import sys
 import os
 from docx import Document
@@ -126,5 +125,4 @@ if __name__ == "__main__":
     
     file1, file2 = sys.argv[1], sys.argv[2]
     similar = compare_word_files(file1, file2)
->>>>>>> c879242a8737eb110362da948da198a21d5db194
     sys.exit(0 if similar else 1)

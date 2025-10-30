@@ -10,12 +10,6 @@ def main():
     
     file1, file2 = sys.argv[1], sys.argv[2]
     
-    # DEBUG: Print received arguments
-    # print(f"DEBUG: Received file1: {file1}")
-    # print(f"DEBUG: Received file2: {file2}")
-    # print(f"DEBUG: File1 exists: {os.path.exists(file1)}")
-    # print(f"DEBUG: File2 exists: {os.path.exists(file2)}")
-    
     try:
         similar = compare_pptx_files(file1, file2)
         sys.exit(0 if similar else 1)
@@ -24,27 +18,18 @@ def main():
         sys.exit(1)
 
 def compare_pptx_files(file1, file2):
-    try:
-        # Read PowerPoint presentations
-        prs1 = Presentation(file1)
-        prs2 = Presentation(file2)
-        
-        # Extract text from both presentations
-        text1 = extract_text(prs1)
-        text2 = extract_text(prs2)
-        
-        # Calculate similarity
-        similarity = calculate_text_similarity(text1, text2)
-        
-        return similarity > 0.6
-        
-    except Exception as e:
-        # Log error for debugging
-        with open("powerpoint_error.log", "a", encoding="utf-8") as f:
-            f.write(f"Error: {str(e)}\n")
-            f.write(f"File1: {file1}\n")
-            f.write(f"File2: {file2}\n\n")
-        return False
+    # Read PowerPoint presentations
+    prs1 = Presentation(file1)
+    prs2 = Presentation(file2)
+    
+    # Extract text from both presentations
+    text1 = extract_text(prs1)
+    text2 = extract_text(prs2)
+    
+    # Calculate similarity
+    similarity = calculate_text_similarity(text1, text2)
+    
+    return similarity > 0.6
 
 def extract_text(prs):
     """Extract text from PowerPoint presentation"""
@@ -72,4 +57,4 @@ def calculate_text_similarity(text1, text2):
     return similarity
 
 if __name__ == "__main__":
-    main()  
+    main()
