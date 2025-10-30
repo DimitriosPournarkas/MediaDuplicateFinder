@@ -358,25 +358,27 @@ std::pair<bool, double> arePowerPointSimilar(const FileInfo& ppt1, const FileInf
 }
 std::pair<bool, double> areFilesSimilar(const FileInfo& file1, const FileInfo& file2) {
     if (file1.type != file2.type) return {false, 0.0};
-    
+
     if (file1.type == "image") {
         return areImagesSimilar(file1, file2);
     } else if (file1.type == "audio") {
         return areAudioSimilar(file1, file2);
     } else if (file1.type == "word") {
-        return areWordSimilar(file1, file2);           // Direct Word comparison
+        return areWordSimilar(file1, file2);
     } else if (file1.type == "excel") {
-        return areExcelSimilar(file1, file2);          // Direct Excel comparison
+        return areExcelSimilar(file1, file2);
     } else if (file1.type == "powerpoint") {
-        return arePowerPointSimilar(file1, file2);     // Direct PowerPoint comparison
+        return arePowerPointSimilar(file1, file2);
     } else if (file1.type == "text") {
-        return areDocumentsSimilar(file1, file2);      // Only for text files
+        return areDocumentsSimilar(file1, file2);
     } else if (file1.type == "other") {
         return areArchivesSimilar(file1, file2);
     }
-    
+
     return {false, 0.0};
 }
+
+
 }; 
 
 // ---------------------------------------------------------
