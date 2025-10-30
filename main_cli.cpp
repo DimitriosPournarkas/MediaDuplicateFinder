@@ -338,19 +338,19 @@ public:
         return {result == 0, 0.85};
     }
     
-    std::pair<bool, double> arePowerPointSimilar(const FileInfo& ppt1, const FileInfo& ppt2) {
-        std::string currentDir = fs::current_path().string();
-        
-        #ifdef _WIN32
-            std::string command = "cd /d \"" + currentDir + "\" && python powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\" 2>nul";
-        #else
-            std::string command = "cd \"" + currentDir + "\" && python3 powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\" 2>/dev/null";
-        #endif
-        
-        int result = system(command.c_str());
-        return {result == 0, result == 0 ? 0.85 : 0.0};
-    }
+std::pair<bool, double> arePowerPointSimilar(const FileInfo& ppt1, const FileInfo& ppt2) {
+    std::string currentDir = fs::current_path().string();
     
+    #ifdef _WIN32
+        std::string command = "cd /d \"" + currentDir + "\" && python powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\" 2>nul";
+    #else
+        std::string command = "cd \"" + currentDir + "\" && python3 powerpoint_comparer.py \"" + ppt1.path + "\" \"" + ppt2.path + "\" 2>/dev/null";
+    #endif
+    
+    int result = system(command.c_str());
+    return {result == 0, result == 0 ? 0.85 : 0.0};
+    }
+
     std::pair<bool, double> areFilesSimilar(const FileInfo& file1, const FileInfo& file2) {
         if (file1.type != file2.type) return {false, 0.0};
         
@@ -475,7 +475,6 @@ std::string FileScanner::calculateHash(const std::string& filePath) {
     return ss.str();
 #endif
 }
-
 std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
     const std::vector<FileInfo>& files) {
 
@@ -513,7 +512,6 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
 
     return duplicates;
 }
-
 
 std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vector<FileInfo>& files) {
     std::vector<std::vector<FileInfo>> similarGroups;

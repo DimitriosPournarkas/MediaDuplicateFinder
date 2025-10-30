@@ -141,6 +141,7 @@ class DuplicateFinderGUI:
                 messagebox.showinfo("Success", "File deleted successfully")
             except Exception as e:
                 messagebox.showerror("Error", f"Could not delete file: {e}")
+
         
     def browse_directory(self):
         directory = filedialog.askdirectory(title="Select Directory to Scan")
