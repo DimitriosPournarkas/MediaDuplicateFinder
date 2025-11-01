@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import pandas as pd
 import sys
 import os
@@ -71,7 +70,6 @@ if __name__ == "__main__":
     
     file1, file2 = sys.argv[1], sys.argv[2]
     similar = compare_excel_files(file1, file2)
-=======
 import pandas as pd
 import sys
 import os

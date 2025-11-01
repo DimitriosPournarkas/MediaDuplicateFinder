@@ -9,6 +9,8 @@
 #include <iomanip>
 #include <cstdint>
 #include <set>
+#include <chrono>
+#include <ctime>
 
 #ifdef _WIN32
     #include <windows.h>
@@ -20,8 +22,7 @@
 #include "stb_image.h"
 
 namespace fs = std::filesystem;
-#include <cmath>
-#include <cstdint>
+
 // ---------------------------------------------------------
 // File information structures
 // ---------------------------------------------------------
@@ -46,16 +47,16 @@ struct FileInfo {
 };
 
 // ---------------------------------------------------------
-// SimilarityFinder class
+// SimilarityFinder class (OPTIMIZED VERSION)
 // ---------------------------------------------------------
 class SimilarityFinder {
 public:
-    // Struct for batch comparisons
+    // Structs for batch processing
     struct ComparisonPair {
         std::string type;
         std::string file1;
         std::string file2;
-        size_t index;  // Track original position
+        size_t index;
     };
     
     struct ComparisonResult {
@@ -70,6 +71,8 @@ public:
         if (comparisons.empty()) {
             return {};
         }
+        
+        std::cerr << "🔥 DEBUG: Batch function called with " << comparisons.size() << " comparisons!" << std::endl;
         
         // Build JSON input
         std::stringstream jsonInput;
@@ -93,6 +96,7 @@ public:
         
         // Execute Python script
         std::string currentDir = fs::current_path().string();
+        std::cerr << "🔥 DEBUG: Current directory: " << currentDir << std::endl;
         
         #ifdef _WIN32
             std::string command = "cd /d \"" + currentDir + "\" && python office_comparer_batch.py < \"" 
@@ -102,7 +106,9 @@ public:
                                 + inputFile + "\" > \"" + outputFile + "\" 2>/dev/null";
         #endif
         
+        std::cerr << "🔥 DEBUG: Command: " << command << std::endl;
         int result = system(command.c_str());
+        std::cerr << "🔥 DEBUG: Python command result: " << result << std::endl;
         
         // Read results
         std::map<size_t, ComparisonResult> results;
@@ -114,8 +120,12 @@ public:
             std::string jsonOutput = buffer.str();
             inf.close();
             
+            std::cerr << "🔥 DEBUG: Got output: " << jsonOutput.substr(0, 100) << "..." << std::endl;
+            
             // Parse JSON output
             results = parseJsonResults(jsonOutput, comparisons);
+        } else {
+            std::cerr << "🔥 DEBUG: Batch failed, will use fallbacks" << std::endl;
         }
         
         // Cleanup temp files
@@ -125,7 +135,7 @@ public:
         return results;
     }
 
-    // ========== FALLBACK METHODS (for when batch fails) ==========
+    // ========== FALLBACK METHODS ==========
     std::pair<bool, double> areWordSimilarFallback(const FileInfo& doc1, const FileInfo& doc2) {
         std::string name1 = fs::path(doc1.path).stem().string();
         std::string name2 = fs::path(doc2.path).stem().string();
@@ -270,20 +280,17 @@ public:
 
     // ========== TEXT/DOCUMENT COMPARISON ==========
     std::string extractTextContent(const FileInfo& file) {
-        if (file.type == "document") {
-            std::ifstream fs(file.path);
-            if (!fs) return "";
-            
-            std::string content;
-            std::string line;
-            int lineCount = 0;
-            while (std::getline(fs, line) && lineCount < 50) {
-                content += line + "\n";
-                lineCount++;
-            }
-            return content;
+        std::ifstream fs(file.path);
+        if (!fs) return "";
+        
+        std::string content;
+        std::string line;
+        int lineCount = 0;
+        while (std::getline(fs, line) && lineCount < 50) {
+            content += line + "\n";
+            lineCount++;
         }
-        return "";
+        return content;
     }
     
     std::set<std::string> extractWords(const std::string& text) {
@@ -369,7 +376,7 @@ public:
         } else if (file1.type == "other") {
             return areArchivesSimilar(file1, file2);
         }
-        // Note: word, excel, powerpoint are handled via batch in findSimilarFiles
+        // Note: word, excel, powerpoint are handled via batch
         return {false, 0.0};
     }
 
@@ -447,7 +454,7 @@ private:
         
         return results;
     }
-};            
+};
 // ---------------------------------------------------------
 // FileScanner class
 // ---------------------------------------------------------
@@ -462,9 +469,147 @@ public:
     std::vector<std::vector<FileInfo>> findSimilarFiles(const std::vector<FileInfo>& files);
 };
 
+
 // ---------------------------------------------------------
 // Method implementations
 // ---------------------------------------------------------
+std::vector<FileInfo> FileScanner::findFiles(const std::string& directory) {
+    std::vector<FileInfo> results;
+
+    try {
+        for (const auto& entry : fs::recursive_directory_iterator(directory)) {
+            if (entry.is_regular_file()) {
+                std::string path = entry.path().string();
+                std::string ext = entry.path().extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+                FileInfo info;
+                info.path = path;
+                info.size_bytes = entry.file_size();
+
+                // WICHTIG: Separate types für Office-Dateien!
+                if (ext == ".jpg" || ext == ".jpeg" || ext == ".png" ||
+                    ext == ".bmp" || ext == ".webp" || ext == ".tiff") {
+                    info.type = "image";
+                    results.push_back(info);
+                } else if (ext == ".mp3" || ext == ".flac" || ext == ".wav" ||
+                          ext == ".aac" || ext == ".ogg" || ext == ".m4a") {
+                    info.type = "audio";
+                    results.push_back(info);
+                } else if (ext == ".docx") {
+                    info.type = "word";
+                    results.push_back(info);
+                } else if (ext == ".xlsx" || ext == ".xls") {
+                    info.type = "excel";
+                    results.push_back(info);
+                } else if (ext == ".pptx") {
+                    info.type = "powerpoint";
+                    results.push_back(info);
+                } else if (ext == ".txt" || ext == ".pdf" || ext == ".csv") {
+                    info.type = "text";
+                    results.push_back(info);
+                } else if (ext == ".zip" || ext == ".rar" || ext == ".7z" || ext == ".exe") {
+                    info.type = "other";
+                    results.push_back(info);
+                }
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Error scanning directory: " << e.what() << std::endl;
+    }
+
+    return results;
+}
+
+std::string FileScanner::calculateHash(const std::string& filePath) {
+    std::ifstream file(filePath, std::ios::binary);
+    if (!file) return "";
+
+#ifdef _WIN32
+    HCRYPTPROV hProv = 0;
+    HCRYPTHASH hHash = 0;
+
+    if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT))
+        return "";
+
+    if (!CryptCreateHash(hProv, CALG_SHA_256, 0, 0, &hHash)) {
+        CryptReleaseContext(hProv, 0);
+        return "";
+    }
+
+    const size_t bufferSize = 8192;
+    char buffer[bufferSize];
+
+    while (file.read(buffer, bufferSize) || file.gcount() > 0) {
+        if (!CryptHashData(hHash, (BYTE*)buffer, (DWORD)file.gcount(), 0)) {
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            return "";
+        }
+    }
+
+    BYTE hash[32];
+    DWORD hashLen = 32;
+    CryptGetHashParam(hHash, HP_HASHVAL, hash, &hashLen, 0);
+
+    CryptDestroyHash(hHash);
+    CryptReleaseContext(hProv, 0);
+
+    std::stringstream ss;
+    for (int i = 0; i < 32; i++)
+        ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
+    return ss.str();
+
+#else
+    std::stringstream ss;
+    const size_t bufferSize = 8192;
+    char buffer[bufferSize];
+    size_t hash = 0;
+    while (file.read(buffer, bufferSize) || file.gcount() > 0) {
+        for (int i = 0; i < file.gcount(); i++)
+            hash = hash * 31 + buffer[i];
+    }
+    ss << std::hex << hash;
+    return ss.str();
+#endif
+}
+
+std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
+    const std::vector<FileInfo>& files) {
+
+    std::map<std::string, std::vector<FileInfo>> duplicates;
+    std::cerr << "Calculating hashes for exact duplicates..." << std::endl;
+
+    int processed = 0;
+    auto startTime = std::chrono::steady_clock::now();
+    
+    for (const auto& file : files) {
+        std::string hash = calculateHash(file.path);
+        if (!hash.empty()) duplicates[hash].push_back(file);
+
+        processed++;
+        
+        if (processed % 20 == 0) {
+            auto now = std::chrono::steady_clock::now();
+            double elapsed = std::chrono::duration<double>(now - startTime).count();
+            double eta = elapsed / processed * (files.size() - processed);
+            std::cerr << "Processed " << processed << "/" << files.size()
+                      << " files, ETA: " << (int)eta << "s" << std::endl;
+        }
+    }
+
+    std::cerr << "Done calculating hashes!" << std::endl;
+
+    for (auto it = duplicates.begin(); it != duplicates.end();) {
+        if (it->second.size() < 2)
+            it = duplicates.erase(it);
+        else
+            ++it;
+    }
+
+    return duplicates;
+}
+
 std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vector<FileInfo>& files) {
     std::vector<std::vector<FileInfo>> similarGroups;
     std::vector<bool> processed(files.size(), false);
@@ -483,9 +628,9 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
     
     std::cerr << "Starting similarity scan with " << totalComparisons << " comparisons..." << std::endl;
     
-    // STEP 1: Collect all Office file comparisons (Word, Excel, PowerPoint)
+    // ========== STEP 1: Collect all Office file comparisons ==========
     std::vector<SimilarityFinder::ComparisonPair> officeComparisons;
-    std::map<std::pair<size_t, size_t>, size_t> comparisonIndexMap;  // Maps (i,j) to officeComparisons index
+    std::map<std::pair<size_t, size_t>, size_t> comparisonIndexMap;
     
     for (size_t i = 0; i < files.size(); i++) {
         if (processed[i]) continue;
@@ -507,7 +652,7 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
         }
     }
     
-    // STEP 2: Execute batch Office comparison (ONLY ONCE!)
+    // ========== STEP 2: Execute batch Office comparison (ONLY ONCE!) ==========
     std::map<size_t, SimilarityFinder::ComparisonResult> officeResults;
     if (!officeComparisons.empty()) {
         std::cerr << "Processing " << officeComparisons.size() 
@@ -518,7 +663,7 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
         std::cerr << "Office batch comparison complete!" << std::endl;
     }
     
-    // STEP 3: Now process all files and use cached Office results
+    // ========== STEP 3: Process all files and use cached Office results ==========
     size_t doneComparisons = 0;
     auto startTime = std::chrono::steady_clock::now();
     
@@ -595,6 +740,7 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
     std::cerr << "Similarity scan complete!" << std::endl;
     return similarGroups;
 }
+
 // ---------------------------------------------------------
 // Main function
 // ---------------------------------------------------------
