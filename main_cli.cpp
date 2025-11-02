@@ -721,13 +721,15 @@ for (size_t i = 0; i < files.size(); i++) {
                     size_t batchIndex = it->second;
                     auto resultIt = officeResults.find(batchIndex);
                     
-                    
+                    std::cerr << "🔥 LOOKUP: batchIndex=" << batchIndex 
+                    << ", found in map=" << (resultIt != officeResults.end()) << std::endl;
                     if (resultIt != officeResults.end()) {
                         similar = resultIt->second.similar;
                         score = resultIt->second.score;
+                        std::cerr << "🔥 BATCH RESULT: similar=" << similar << ", score=" << score << std::endl;
                         
                     } else {
-                        
+                        std::cerr << "🔥 FALLBACK triggered!" << std::endl;
                         // Fallback if batch failed for this pair
                         if (files[i].type == "word") {
                             auto result = similarityFinder.areWordSimilarFallback(files[i], files[j]);
@@ -741,6 +743,7 @@ for (size_t i = 0; i < files.size(); i++) {
                             auto result = similarityFinder.arePowerPointSimilarFallback(files[i], files[j]);
                             similar = result.first;
                             score = result.second;
+                            std::cerr << "🔥 FALLBACK PPT: similar=" << similar << ", score=" << score << std::endl;
                         }
                     }
                 }
