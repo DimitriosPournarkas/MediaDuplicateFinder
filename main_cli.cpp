@@ -701,16 +701,23 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
                 double score = 0.0;
                 
                 // Use pre-computed Office results
+                //Debug
                 if (files[i].type == "word" || files[i].type == "excel" || files[i].type == "powerpoint") {
                     auto it = comparisonIndexMap.find({i, j});
                     if (it != comparisonIndexMap.end()) {
                         size_t batchIndex = it->second;
                         auto resultIt = officeResults.find(batchIndex);
                         
+                        std::cerr << "🔥 LOOKUP: Checking files[" << i << "] vs files[" << j 
+                                << "], batchIndex=" << batchIndex << std::endl;
+                        
                         if (resultIt != officeResults.end()) {
                             similar = resultIt->second.similar;
                             score = resultIt->second.score;
+                            std::cerr << "🔥 FOUND: similar=" << similar << ", score=" << score << std::endl;
                         } else {
+                            std::cerr << "🔥 ERROR: batchIndex " << batchIndex << " not found in results!" << std::endl;
+                            // Debug
                             // Fallback if batch failed for this pair
                             if (files[i].type == "word") {
                                 auto result = similarityFinder.areWordSimilarFallback(files[i], files[j]);
