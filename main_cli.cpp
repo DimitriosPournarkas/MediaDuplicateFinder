@@ -668,6 +668,9 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
                 pair.file1 = files[i].path;
                 pair.file2 = files[j].path;
                 pair.index = officeComparisons.size();
+                std::cerr << "🔥 Collecting: " << pair.type << " - " 
+              << fs::path(pair.file1).filename() << " vs " 
+              << fs::path(pair.file2).filename() << std::endl;  // ← NEU
                 
                 comparisonIndexMap[{i, j}] = pair.index;
                 officeComparisons.push_back(pair);
