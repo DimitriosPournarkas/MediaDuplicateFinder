@@ -143,6 +143,24 @@ def compare_files_batch(comparisons):
                 similarity = calculate_text_similarity(text1, text2)
                 similar = similarity > 0.6
                 results.append({'similar': similar, 'score': similarity if similar else 0.0})
+                
+        elif file_type == 'powerpoint':
+            text1 = extract_powerpoint_text(file1)
+            text2 = extract_powerpoint_text(file2)
+            
+            if text1 is None or text2 is None:
+                results.append({'similar': False, 'score': 0.0})
+            else:
+                similarity = calculate_text_similarity(text1, text2)
+                similar = similarity > 0.6
+                
+                # DEBUG - NEU!
+                import os
+                f1_name = os.path.basename(file1)
+                f2_name = os.path.basename(file2)
+                print(f"DEBUG PPT: {f1_name} vs {f2_name} → similarity={similarity:.2f}, similar={similar}", file=sys.stderr)
+                
+                results.append({'similar': similar, 'score': similarity if similar else 0.0})
 
 if __name__ == "__main__":
     # Read JSON from stdin

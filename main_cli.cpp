@@ -758,7 +758,10 @@ for (size_t i = 0; i < files.size(); i++) {
                 similarFile.similarity_score = score;
                 group.push_back(similarFile);
                 processed[j] = true;
-                
+                //Debug
+                 std::cerr << "🔥 ADDED files[" << j << "] (" 
+              << fs::path(files[j].path).filename().string()
+              << ") to group, score=" << score << std::endl;
                 
             }
             
@@ -773,10 +776,16 @@ for (size_t i = 0; i < files.size(); i++) {
         }
     }
     
-    if (group.size() > 1) {
-        similarGroups.push_back(group);
-        
-    }
+            if (group.size() > 1) {
+                // DEBUG - NEU
+                std::cerr << "🔥 FINAL GROUP (" << group.size() << " files): ";
+                for (const auto& f : group) {
+                    std::cerr << fs::path(f.path).filename().string() << " ";
+                }
+                std::cerr << std::endl;
+                
+                similarGroups.push_back(group);  // Nur EINMAL!
+            }
 }
 
 std::cerr << "Similarity scan complete!" << std::endl;
