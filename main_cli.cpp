@@ -418,42 +418,56 @@ private:
         return escaped;
     }
     
-    std::map<size_t, ComparisonResult> parseJsonResults(
-        const std::string& json, 
-        const std::vector<ComparisonPair>& comparisons) {
+std::map<size_t, ComparisonResult> parseJsonResults(
+    const std::string& json, 
+    const std::vector<ComparisonPair>& comparisons) {
+    
+    std::map<size_t, ComparisonResult> results;
+    
+    size_t pos = 0;
+    size_t compIndex = 0;
+    
+    while ((pos = json.find("{\"similar\":", pos)) != std::string::npos && 
+           compIndex < comparisons.size()) {
         
-        std::map<size_t, ComparisonResult> results;
+        ComparisonResult result;
         
-        size_t pos = 0;
-        size_t compIndex = 0;
+        // Extract "similar" value - FIXED!
+        size_t similarPos = json.find(":", pos) + 1;
+        // Skip whitespace
+        while (similarPos < json.length() && json[similarPos] == ' ') similarPos++;
         
-        while ((pos = json.find("{\"similar\":", pos)) != std::string::npos && 
-               compIndex < comparisons.size()) {
-            
-            ComparisonResult result;
-            
-            // Extract "similar" value
-            size_t similarPos = json.find(":", pos) + 1;
-            result.similar = (json.substr(similarPos, 4) == "true");
-            
-            // Extract "score" value
-            size_t scorePos = json.find("\"score\":", pos);
-            if (scorePos != std::string::npos) {
-                scorePos = json.find(":", scorePos) + 1;
-                size_t endPos = json.find_first_of(",}", scorePos);
-                std::string scoreStr = json.substr(scorePos, endPos - scorePos);
-                result.score = std::stod(scoreStr);
-            } else {
-                result.score = 0.0;
-            }
-            
-            results[comparisons[compIndex].index] = result;
-            compIndex++;
-            pos++;
+        // Check for "true" or "false"
+        if (json.substr(similarPos, 4) == "true") {
+            result.similar = true;
+        } else if (json.substr(similarPos, 5) == "false") {
+            result.similar = false;
+        } else {
+            result.similar = false;
         }
         
-        return results;
+        std::cerr << "🔥 PARSE DEBUG: Found similar=" << (result.similar ? "true" : "false") << std::endl;
+        
+        // Extract "score" value
+        size_t scorePos = json.find("\"score\":", pos);
+        if (scorePos != std::string::npos) {
+            scorePos = json.find(":", scorePos) + 1;
+            // Skip whitespace
+            while (scorePos < json.length() && json[scorePos] == ' ') scorePos++;
+            size_t endPos = json.find_first_of(",}", scorePos);
+            std::string scoreStr = json.substr(scorePos, endPos - scorePos);
+            result.score = std::stod(scoreStr);
+        } else {
+            result.score = 0.0;
+        }
+        
+        results[comparisons[compIndex].index] = result;
+        compIndex++;
+        pos++;
     }
+    
+    return results;
+}
 };
 // ---------------------------------------------------------
 // FileScanner class
@@ -659,7 +673,13 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
                   << " Office file comparisons in batch..." << std::endl;
         
         officeResults = similarityFinder.compareOfficeFilesBatch(officeComparisons);
-        
+        //new
+        std::cerr << "🔥 DEBUG: Got " << officeResults.size() << " results from batch" << std::endl;
+    for (const auto& [idx, result] : officeResults) {
+    std::cerr << "🔥 DEBUG: Result " << idx << ": similar=" << result.similar 
+              << ", score=" << result.score << std::endl;
+    }
+        // test
         std::cerr << "Office batch comparison complete!" << std::endl;
     }
     
