@@ -123,8 +123,6 @@ def compare_files_batch(comparisons):
         file1 = comp['file1']
         file2 = comp['file2']
         
-        # DEBUG: Print what we're comparing
-        print(f"DEBUG: Comparing {file_type}: {file1} vs {file2}", file=sys.stderr)
         
         # Handle Excel files
         if file_type == 'excel':
@@ -137,16 +135,13 @@ def compare_files_batch(comparisons):
         elif file_type == 'word':
             text1 = extract_word_text(file1)
             text2 = extract_word_text(file2)
-            
-            print(f"DEBUG: Word text1 length={len(text1) if text1 else 0}", file=sys.stderr)
-            print(f"DEBUG: Word text2 length={len(text2) if text2 else 0}", file=sys.stderr)
+        
             
             if text1 is None or text2 is None:
                 results.append({'similar': False, 'score': 0.0})
             else:
                 similarity = calculate_text_similarity(text1, text2)
                 similar = similarity > 0.6
-                print(f"DEBUG: Word similarity={similarity}, similar={similar}", file=sys.stderr)
                 results.append({'similar': similar, 'score': similarity if similar else 0.0})
 
 if __name__ == "__main__":
