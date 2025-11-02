@@ -72,7 +72,7 @@ public:
             return {};
         }
         
-        std::cerr << "🔥 DEBUG: Batch function called with " << comparisons.size() << " comparisons!" << std::endl;
+        
         
         // Build JSON input
         std::stringstream jsonInput;
@@ -96,7 +96,7 @@ public:
         
         // Execute Python script
         std::string currentDir = fs::current_path().string();
-        std::cerr << "🔥 DEBUG: Current directory: " << currentDir << std::endl;
+        
         
         #ifdef _WIN32
             std::string command = "cd /d \"" + currentDir + "\" && python office_comparer_batch.py < \"" 
@@ -106,9 +106,9 @@ public:
                                 + inputFile + "\" > \"" + outputFile + "\" 2>/dev/null";
         #endif
         
-        std::cerr << "🔥 DEBUG: Command: " << command << std::endl;
+        
         int result = system(command.c_str());
-        std::cerr << "🔥 DEBUG: Python command result: " << result << std::endl;
+        
         
         // Read results
         std::map<size_t, ComparisonResult> results;
@@ -120,12 +120,12 @@ public:
             std::string jsonOutput = buffer.str();
             inf.close();
             
-            std::cerr << "🔥 DEBUG: Got output: " << jsonOutput.substr(0, 100) << "..." << std::endl;
+            
             
             // Parse JSON output
             results = parseJsonResults(jsonOutput, comparisons);
         } else {
-            std::cerr << "🔥 DEBUG: Batch failed, will use fallbacks" << std::endl;
+            
         }
         
         // Cleanup temp files
@@ -446,7 +446,7 @@ std::map<size_t, ComparisonResult> parseJsonResults(
             result.similar = false;
         }
         
-        std::cerr << "🔥 PARSE DEBUG: Found similar=" << (result.similar ? "true" : "false") << std::endl;
+        
         
         // Extract "score" value
         size_t scorePos = json.find("\"score\":", pos);
@@ -683,11 +683,6 @@ if (!officeComparisons.empty()) {
     
     officeResults = similarityFinder.compareOfficeFilesBatch(officeComparisons);
     
-    std::cerr << "🔥 DEBUG: Got " << officeResults.size() << " results from batch" << std::endl;
-    for (const auto& [idx, result] : officeResults) {
-        std::cerr << "🔥 DEBUG: Result " << idx << ": similar=" << result.similar 
-                  << ", score=" << result.score << std::endl;
-    }
     
     std::cerr << "Office batch comparison complete!" << std::endl;
 }
