@@ -96,10 +96,11 @@ def extract_powerpoint_text(filepath):
         return None
 
 def calculate_text_similarity(text1, text2):
-    """Calculate similarity between two texts"""
+    """Calculate similarity between two texts - same as word_comparer.py"""
     if not text1 or not text2:
         return 0.0
     
+    # Simple word-based similarity (SAME as original word_comparer.py)
     words1 = set(re.findall(r'\w+', text1.lower()))
     words2 = set(re.findall(r'\w+', text2.lower()))
     
@@ -114,8 +115,6 @@ def calculate_text_similarity(text1, text2):
 def compare_files_batch(comparisons):
     """
     Compare multiple file pairs at once
-    Input: List of {type, file1, file2}
-    Output: List of similarity scores
     """
     results = []
     
@@ -124,40 +123,31 @@ def compare_files_batch(comparisons):
         file1 = comp['file1']
         file2 = comp['file2']
         
-        # Handle Excel files with pandas (cell-by-cell comparison)
+        # DEBUG: Print what we're comparing
+        print(f"DEBUG: Comparing {file_type}: {file1} vs {file2}", file=sys.stderr)
+        
+        # Handle Excel files
         if file_type == 'excel':
             similarity = compare_excel_files(file1, file2)
-            similar = similarity > 0.7  # 70% threshold like original
+            similar = similarity > 0.7
+            print(f"DEBUG: Excel similarity={similarity}, similar={similar}", file=sys.stderr)
             results.append({'similar': similar, 'score': similarity if similar else 0.0})
         
-        # Handle Word files with text comparison
+        # Handle Word files
         elif file_type == 'word':
             text1 = extract_word_text(file1)
             text2 = extract_word_text(file2)
             
-            if text1 is None or text2 is None:
-                results.append({'similar': False, 'score': 0.0})
-            else:
-                similarity = calculate_text_similarity(text1, text2)
-                similar = similarity > 0.6
-                results.append({'similar': similar, 'score': similarity if similar else 0.0})
-        
-        # Handle PowerPoint files
-        elif file_type == 'powerpoint':
-            text1 = extract_powerpoint_text(file1)
-            text2 = extract_powerpoint_text(file2)
+            print(f"DEBUG: Word text1 length={len(text1) if text1 else 0}", file=sys.stderr)
+            print(f"DEBUG: Word text2 length={len(text2) if text2 else 0}", file=sys.stderr)
             
             if text1 is None or text2 is None:
                 results.append({'similar': False, 'score': 0.0})
             else:
                 similarity = calculate_text_similarity(text1, text2)
                 similar = similarity > 0.6
+                print(f"DEBUG: Word similarity={similarity}, similar={similar}", file=sys.stderr)
                 results.append({'similar': similar, 'score': similarity if similar else 0.0})
-        
-        else:
-            results.append({'similar': False, 'score': 0.0})
-    
-    return results
 
 if __name__ == "__main__":
     # Read JSON from stdin

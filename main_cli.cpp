@@ -98,12 +98,19 @@ public:
         std::string currentDir = fs::current_path().string();
         
         
+        // #ifdef _WIN32
+        //     std::string command = "cd /d \"" + currentDir + "\" && python office_comparer_batch.py < \"" 
+        //                         + inputFile + "\" > \"" + outputFile + "\" 2>nul";
+        // #else
+        //     std::string command = "cd \"" + currentDir + "\" && python3 office_comparer_batch.py < \"" 
+        //                         + inputFile + "\" > \"" + outputFile + "\" 2>/dev/null";
+        // #endif
         #ifdef _WIN32
             std::string command = "cd /d \"" + currentDir + "\" && python office_comparer_batch.py < \"" 
-                                + inputFile + "\" > \"" + outputFile + "\" 2>nul";
+                        + inputFile + "\" > \"" + outputFile + "\"";  // ← 2>nul entfernt!
         #else
             std::string command = "cd \"" + currentDir + "\" && python3 office_comparer_batch.py < \"" 
-                                + inputFile + "\" > \"" + outputFile + "\" 2>/dev/null";
+                        + inputFile + "\" > \"" + outputFile + "\"";  // ← 2>/dev/null entfernt!
         #endif
         
         
