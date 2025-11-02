@@ -711,15 +711,13 @@ for (size_t i = 0; i < files.size(); i++) {
                     size_t batchIndex = it->second;
                     auto resultIt = officeResults.find(batchIndex);
                     
-                    std::cerr << "🔥 LOOKUP: Checking files[" << i << "] vs files[" << j 
-                              << "], batchIndex=" << batchIndex << std::endl;
                     
                     if (resultIt != officeResults.end()) {
                         similar = resultIt->second.similar;
                         score = resultIt->second.score;
-                        std::cerr << "🔥 FOUND: similar=" << similar << ", score=" << score << std::endl;
+                        
                     } else {
-                        std::cerr << "🔥 ERROR: batchIndex " << batchIndex << " not found in results!" << std::endl;
+                        
                         // Fallback if batch failed for this pair
                         if (files[i].type == "word") {
                             auto result = similarityFinder.areWordSimilarFallback(files[i], files[j]);
@@ -751,10 +749,7 @@ for (size_t i = 0; i < files.size(); i++) {
                 group.push_back(similarFile);
                 processed[j] = true;
                 
-                std::cerr << "🔥 ADDED: files[" << j << "] to group with score " << score << std::endl;
-            } else {
-                std::cerr << "🔥 SKIPPED: files[" << i << "] vs files[" << j 
-                          << "], similar=" << similar << std::endl;
+                
             }
             
             // Print progress every 50 comparisons
@@ -770,9 +765,7 @@ for (size_t i = 0; i < files.size(); i++) {
     
     if (group.size() > 1) {
         similarGroups.push_back(group);
-        std::cerr << "🔥 GROUP ADDED: " << group.size() << " files in group" << std::endl;
-    } else {
-        std::cerr << "🔥 GROUP TOO SMALL: only " << group.size() << " file(s), skipping" << std::endl;
+        
     }
 }
 
