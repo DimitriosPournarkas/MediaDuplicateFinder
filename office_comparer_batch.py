@@ -70,18 +70,19 @@ def compare_sheets(df1, df2):
     compared_cells = 0
     
     for col in common_cols:
-        for i in range(min_rows):
-            val1 = df1[col].iloc[i]
-            val2 = df2[col].iloc[i]
-            
-            compared_cells += 1
-            
-            # Handle NaN values
-            if pd.isna(val1) and pd.isna(val2):
-                matching_cells += 1
-            elif str(val1) == str(val2):
-                matching_cells += 1
-    
+        # Get entire columns at once 
+        col1 = df1[col].iloc[:min_rows]
+        col2 = df2[col].iloc[:min_rows]
+        
+        # Vectorized comparison inC! 
+        both_nan = pd.isna(col1) & pd.isna(col2)
+        both_equal = (col1.astype(str) == col2.astype(str))
+        
+        matches = (both_nan | both_equal).sum()
+        
+        matching_cells += matches
+        compared_cells += len(col1)
+
     # Calculate similarity based on compared cells
     return matching_cells / compared_cells if compared_cells > 0 else 0.0
 
