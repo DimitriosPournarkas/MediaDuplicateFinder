@@ -4,7 +4,8 @@ from docx import Document
 import pandas as pd
 from pptx import Presentation
 import re
-
+from multiprocessing import Pool
+import os
 def extract_word_text(filepath):
     """Extract text from Word document"""
     try:
@@ -114,55 +115,114 @@ def calculate_text_similarity(text1, text2):
 
 def compare_files_batch(comparisons):
     """
-    Compare multiple file pairs at once
+    Compare multiple file pairs at once - PARALLEL VERSION
     """
-    results = {}  # ← Dictionary statt Liste!
-    
-    for i, comp in enumerate(comparisons):  # ← Index hinzufügen
+    # Step 1: Collect all unique files that need to be read
+    files_to_read = {}
+    for comp in comparisons:
         file_type = comp['type']
         file1 = comp['file1']
         file2 = comp['file2']
         
+        if file1 not in files_to_read:
+            files_to_read[file1] = file_type
+        if file2 not in files_to_read:
+            files_to_read[file2] = file_type
+    
+    # Step 2: Read all files in PARALLEL (this is the slow part!)
+    cpu_count = max(1, os.cpu_count() - 1)  # Leave 1 core free
+    with Pool(processes=cpu_count) as pool:
+        file_list = list(files_to_read.items())
+        loaded_data = pool.starmap(load_file, file_list)
+    
+    # Create dictionary: filepath -> content
+    file_cache = dict(zip(files_to_read.keys(), loaded_data))
+    
+    # Step 3: Compare using cached data (super fast!)
+    results = {}
+    
+    for i, comp in enumerate(comparisons):
+        file_type = comp['type']
+        file1 = comp['file1']
+        file2 = comp['file2']
+        
+        data1 = file_cache[file1]
+        data2 = file_cache[file2]
+        
         # Handle Excel files
         if file_type == 'excel':
-            similarity = compare_excel_files(file1, file2)
+            if data1 is None or data2 is None:
+                similarity = 0.0
+            else:
+                similarity = compare_excel_dataframes(data1, data2)
             similar = similarity > 0.7
-            
-            results[str(i)] = {'similar': similar, 'score': similarity if similar else 0.0}  # ← Index als Key
+            results[str(i)] = {'similar': similar, 'score': similarity if similar else 0.0}
         
         # Handle Word files
         elif file_type == 'word':
-            text1 = extract_word_text(file1)
-            text2 = extract_word_text(file2)
-            
-            if text1 is None or text2 is None:
+            if data1 is None or data2 is None:
                 results[str(i)] = {'similar': False, 'score': 0.0}
             else:
-                similarity = calculate_text_similarity(text1, text2)
+                similarity = calculate_text_similarity(data1, data2)
                 similar = similarity > 0.6
                 results[str(i)] = {'similar': similar, 'score': similarity if similar else 0.0}
                 
+        # Handle PowerPoint files
         elif file_type == 'powerpoint':
-            text1 = extract_powerpoint_text(file1)
-            text2 = extract_powerpoint_text(file2)
-            
-            if text1 is None or text2 is None:
+            if data1 is None or data2 is None:
                 results[str(i)] = {'similar': False, 'score': 0.0}
             else:
-                similarity = calculate_text_similarity(text1, text2)
+                similarity = calculate_text_similarity(data1, data2)
                 similar = similarity > 0.6
-                
-                # DEBUG
-                import os
-                f1_name = os.path.basename(file1)
-                f2_name = os.path.basename(file2)
-                
-                
                 results[str(i)] = {'similar': similar, 'score': similarity if similar else 0.0}
     
-    return results  # ← Gibt jetzt {"0": {...}, "1": {...}} zurück
+    return results
+
+
+def load_file(filepath, file_type):
+    """
+    Load a single file - this runs in parallel!
+    """
+    try:
+        if file_type == 'excel':
+            return pd.read_excel(filepath, sheet_name=None)
+        elif file_type == 'word':
+            return extract_word_text(filepath)
+        elif file_type == 'powerpoint':
+            return extract_powerpoint_text(filepath)
+    except Exception as e:
+        print(f"Error loading {filepath}: {e}", file=sys.stderr)
+        return None
+
+
+def compare_excel_dataframes(df_dict1, df_dict2):
+    """
+    Compare already-loaded Excel dataframes (fast!)
+    """
+    try:
+        common_sheets = set(df_dict1.keys()).intersection(set(df_dict2.keys()))
+        
+        if not common_sheets:
+            return 0.0
+            
+        total_similarity = 0
+        sheet_count = 0
+        
+        for sheet_name in common_sheets:
+            sheet_similarity = compare_sheets(df_dict1[sheet_name], df_dict2[sheet_name])
+            total_similarity += sheet_similarity
+            sheet_count += 1
+        
+        if sheet_count == 0:
+            return 0.0
+            
+        return total_similarity / sheet_count
+        
+    except Exception as e:
+        return 0.0
 
 if __name__ == "__main__":
+    
     # Read JSON from stdin
     input_data = sys.stdin.read()
     
