@@ -5,26 +5,30 @@ import os
 import threading
 import time
 import queue
+
 class DuplicateFinderGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Duplicate File Finder - C++ Backend")
-        self.root.geometry("1200x700")
+        self.root.geometry("1200x750")
+        
         current_dir = os.path.dirname(os.path.abspath(__file__))
         if os.name == 'nt':
             self.cpp_executable = os.path.join(current_dir, "duplicate_finder.exe")
         else:
             self.cpp_executable = os.path.join(current_dir, "duplicate_finder")
         print(f"C++ executable path: {self.cpp_executable}")
-        self.scanning = False
         
-        # NEW: Add these variables for live output processing
+        self.scanning = False
+        self.process = None
+        
+        # Variables for live output processing
         self.stdout_queue = queue.Queue()
         self.stderr_queue = queue.Queue()
         self.stdout_buffer = ""
         self.stderr_buffer = ""
         
-        # NEW: Progress tracking variables
+        # Progress tracking variables
         self.total_files = 0
         self.total_comparisons = 0
         self.processed_files = 0
@@ -51,14 +55,42 @@ class DuplicateFinderGUI:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=10)
         
-        ttk.Button(button_frame, text="Scan Duplicates & Similar Files", 
-                  command=self.scan_duplicates, width=30).pack(side=tk.LEFT, padx=5)
+        self.scan_button = ttk.Button(button_frame, text="Scan Duplicates & Similar Files", 
+                  command=self.scan_duplicates, width=30)
+        self.scan_button.pack(side=tk.LEFT, padx=5)
+        
+        self.cancel_button = ttk.Button(button_frame, text="Cancel Scan", 
+                  command=self.cancel_scan, width=15, state=tk.DISABLED)
+        self.cancel_button.pack(side=tk.LEFT, padx=5)
+        
         ttk.Button(button_frame, text="Delete All Exact Duplicates", 
                   command=self.delete_all_duplicates, width=25).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Delete Selected Group", 
                   command=self.delete_selected_group, width=20).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Clear Results", 
                   command=self.clear_results).pack(side=tk.LEFT, padx=5)
+        
+        # Filter frame
+        filter_frame = ttk.Frame(main_frame)
+        filter_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(filter_frame, text="Show:").pack(side=tk.LEFT, padx=5)
+        
+        self.filter_var = tk.StringVar(value="all")
+        ttk.Radiobutton(filter_frame, text="All Files", variable=self.filter_var, 
+                       value="all", command=self.apply_filter).pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(filter_frame, text="Exact Duplicates Only", variable=self.filter_var, 
+                       value="exact", command=self.apply_filter).pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(filter_frame, text="Similar Files Only", variable=self.filter_var, 
+                       value="similar", command=self.apply_filter).pack(side=tk.LEFT, padx=5)
+        
+        # Statistics frame
+        stats_frame = ttk.LabelFrame(main_frame, text="Statistics", padding="5")
+        stats_frame.pack(fill=tk.X, pady=5)
+        
+        self.stats_var = tk.StringVar(value="No scan performed yet")
+        stats_label = ttk.Label(stats_frame, textvariable=self.stats_var, font=('TkDefaultFont', 10))
+        stats_label.pack()
         
         # Progress bar
         self.progress_frame = ttk.Frame(main_frame)
@@ -139,6 +171,7 @@ class DuplicateFinderGUI:
                 os.remove(file_path)
                 self.tree.delete(item)
                 messagebox.showinfo("Success", "File deleted successfully")
+                self.update_statistics()  # Update stats after deletion
             except Exception as e:
                 messagebox.showerror("Error", f"Could not delete file: {e}")
         
@@ -147,6 +180,20 @@ class DuplicateFinderGUI:
         if directory:
             self.dir_var.set(directory)
             self.status_var.set(f"Selected directory: {directory}")
+    
+    def cancel_scan(self):
+        """Cancel the running scan"""
+        if self.scanning and self.process:
+            try:
+                self.process.terminate()
+                self.scanning = False
+                self.progress_frame.pack_forget()
+                self.status_var.set("Scan cancelled by user")
+                self.scan_button.config(state=tk.NORMAL)
+                self.cancel_button.config(state=tk.DISABLED)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to cancel scan: {e}")
+    
     def update_progress(self):
         if self.scanning:
             total_done = self.processed_files + self.processed_comparisons
@@ -154,11 +201,15 @@ class DuplicateFinderGUI:
             if self.total_work > 0:
                 percentage = min(100, int(100 * total_done / self.total_work))
                 self.progress_bar['value'] = percentage
-                self.status_var.set(f"Scanning {total_done}/{self.total_work} ({percentage}%)")
+                
+                elapsed = time.time() - self.start_time
+                status = f"📁 {self.processed_files} files | 🔍 {self.processed_comparisons} comparisons | ⏱️ {elapsed:.1f}s ({percentage}%)"
+                self.status_var.set(status)
             else:
                 self.status_var.set("Scanning...")
             
             self.root.after(1000, self.update_progress)
+    
     def scan_duplicates(self):
         directory = self.dir_var.get()
         if not directory or not os.path.exists(directory):
@@ -175,28 +226,30 @@ class DuplicateFinderGUI:
         
         self.clear_results()
         self.scanning = True
+        self.scan_button.config(state=tk.DISABLED)
+        self.cancel_button.config(state=tk.NORMAL)
         
         # RESET buffers for new scan
         self.stdout_buffer = ""
         self.stderr_buffer = ""
         
-        # NEW: Reset progress counters
+        # Reset progress counters
         self.total_files = 0
         self.total_comparisons = 0
         self.processed_files = 0
         self.processed_comparisons = 0
         self.total_work = 0
         
-        # Show progress bar - WICHTIG: OHNE .start()!
+        # Show progress bar
         self.progress_frame.pack(fill=tk.X, pady=5)
-        self.progress_bar['value'] = 0  # Start bei 0%
+        self.progress_bar['value'] = 0
         
         # Run scan in separate thread
         thread = threading.Thread(target=self.run_scan, args=(directory,))
         thread.daemon = True
         thread.start()
         
-        # NEW: Start timer and progress updates
+        # Start timer and progress updates
         self.start_time = time.time()
         self.update_progress()
     
@@ -209,7 +262,7 @@ class DuplicateFinderGUI:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=1,  # Line buffered for real-time reading
+                bufsize=1,
                 universal_newlines=True
             )
             
@@ -229,6 +282,9 @@ class DuplicateFinderGUI:
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to run C++ backend: {e}"))
             self.scanning = False
+            self.scan_button.config(state=tk.NORMAL)
+            self.cancel_button.config(state=tk.DISABLED)
+    
     def read_stdout(self):
         """Read stdout in real-time for results"""
         try:
@@ -277,7 +333,6 @@ class DuplicateFinderGUI:
         """Process progress lines from C++ and update counters"""
         line = line.strip()
         
-        # NEU: Parse total work
         if line.startswith("TOTAL_WORK:"):
             try:
                 self.total_work = int(line.split(':')[1])
@@ -302,11 +357,14 @@ class DuplicateFinderGUI:
                         
         except (ValueError, IndexError):
             pass
+    
     def scan_complete_final(self):
         """Final completion handler after process ends"""
         self.scanning = False
         self.progress_bar.stop()
         self.progress_frame.pack_forget()
+        self.scan_button.config(state=tk.NORMAL)
+        self.cancel_button.config(state=tk.DISABLED)
         
         # Check for errors
         if self.process.returncode != 0:
@@ -319,10 +377,8 @@ class DuplicateFinderGUI:
         
         # Parse and display results
         self.parse_results(self.stdout_buffer)
-
     
     def parse_results(self, output):
-        # TEMPORARY: Set status to "Processing results..." while parsing
         self.status_var.set("Processing results...")
         self.root.update_idletasks()
         
@@ -354,17 +410,131 @@ class DuplicateFinderGUI:
             groups.append((group_type, group_similarity, current_group))
         
         self.duplicate_groups = groups
-        
-        # DIRECTLY display results without intermediate message
         self.display_results()
+    
+    def calculate_wasted_space(self):
+        """Calculate total space wasted by duplicates"""
+        total_wasted = 0
+        
+        for group_type, group_similarity, group in self.duplicate_groups:
+            if group_type == "EXACT" and len(group) > 1:
+                # Get size of first file (all duplicates have same size)
+                first_file = group[0][0]
+                try:
+                    file_size = os.path.getsize(first_file) if os.path.exists(first_file) else 0
+                    # Wasted space = size * (number of duplicates - 1)
+                    total_wasted += file_size * (len(group) - 1)
+                except:
+                    pass
+        
+        return total_wasted
+    
+    def update_statistics(self):
+        """Update statistics display"""
+        exact_count = 0
+        similar_count = 0
+        exact_files = 0
+        similar_files = 0
+        
+        for group_type, group_similarity, group in self.duplicate_groups:
+            if len(group) > 1:
+                if group_type == "EXACT":
+                    exact_count += 1
+                    exact_files += len(group)
+                else:
+                    similar_count += 1
+                    similar_files += len(group)
+        
+        wasted_space = self.calculate_wasted_space()
+        
+        stats_text = ""
+        if exact_count > 0:
+            stats_text += f"🔴 {exact_count} exact duplicate groups ({exact_files} files) | "
+        if similar_count > 0:
+            stats_text += f"🟡 {similar_count} similar file groups ({similar_files} files) | "
+        
+        if wasted_space > 0:
+            if wasted_space > 1024 * 1024 * 1024:  # > 1 GB
+                space_str = f"{wasted_space / (1024**3):.2f} GB"
+            elif wasted_space > 1024 * 1024:  # > 1 MB
+                space_str = f"{wasted_space / (1024**2):.2f} MB"
+            else:
+                space_str = f"{wasted_space / 1024:.2f} KB"
+            stats_text += f"💾 Can free up: {space_str}"
+        
+        if not stats_text:
+            stats_text = "No duplicates or similar files found"
+        
+        self.stats_var.set(stats_text)
+
+    def apply_filter(self):
+        """Apply filter to show only selected file types"""
+        filter_value = self.filter_var.get()
+        
+        # Clear tree
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # Re-populate based on filter
+        self.group_items = {}
+        exact_count = 0
+        similar_count = 0
+        
+        for idx, (group_type, group_similarity, group) in enumerate(self.duplicate_groups):
+            # Apply filter
+            if filter_value == "exact" and group_type != "EXACT":
+                continue
+            if filter_value == "similar" and group_type != "SIMILAR":
+                continue
+            
+            if len(group) > 1:
+                if group_type == "EXACT":
+                    exact_count += 1
+                    label = f"🔴 Exact Duplicates #{exact_count} ({len(group)} files)"
+                    group_sim_display = "100%"
+                else:
+                    similar_count += 1
+                    avg_sim = sum(sim for _, sim in group) / len(group)
+                    label = f"🟡 Similar Files #{similar_count} ({len(group)} files) - Similarity: {avg_sim*100:.0f}%"
+                    group_sim_display = f"{avg_sim*100:.0f}%"
+                
+                group_item = self.tree.insert("", "end", text=label, 
+                                            values=("", "", group_sim_display),
+                                            tags=('group',))
+                
+                self.group_items[group_item] = (group_type, group_similarity, group)
+                
+                for file_path, file_sim in group:
+                    try:
+                        file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+                        size_str = f"{file_size / 1024:.1f} KB" if file_size > 0 else "N/A"
+                    except:
+                        size_str = "N/A"
+                    
+                    if group_type == "SIMILAR":
+                        sim_str = f"{file_sim*100:.0f}%"
+                    else:
+                        sim_str = "100%"
+                    
+                    filename = os.path.basename(file_path)
+                    directory = os.path.dirname(file_path)
+                    
+                    file_item = self.tree.insert(group_item, "end", 
+                                            text=f"  📄 {filename}", 
+                                            values=(directory, size_str, sim_str))
+                    self.tree.set(file_item, "path", file_path)
+                
+                self.tree.item(group_item, open=True)
+        
+        self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
 
     def display_results(self):
         if not self.duplicate_groups:
             messagebox.showinfo("No Duplicates", "No duplicate or similar files found!")
             self.status_var.set("No duplicates found")
+            self.stats_var.set("No duplicates or similar files found")
             return
         
-        # Set status to "Displaying results..." during rendering
         self.status_var.set("Displaying results...")
         self.root.update_idletasks()
         
@@ -389,7 +559,6 @@ class DuplicateFinderGUI:
                                             values=("", "", group_sim_display),
                                             tags=('group',))
                 
-                # Store group data for deletion
                 self.group_items[group_item] = (group_type, group_similarity, group)
                 
                 for file_path, file_sim in group:
@@ -410,14 +579,16 @@ class DuplicateFinderGUI:
                     file_item = self.tree.insert(group_item, "end", 
                                             text=f"  📄 {filename}", 
                                             values=(directory, size_str, sim_str))
-                    # Store full path for context menu
                     self.tree.set(file_item, "path", file_path)
                 
                 self.tree.item(group_item, open=True)
         
         self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
         
-        # FINAL status update
+        # Update statistics
+        self.update_statistics()
+        
+        # Final status
         status_msg = f"✅ Found {exact_count} exact duplicate groups"
         if similar_count > 0:
             status_msg += f" and {similar_count} similar file groups"
@@ -432,6 +603,84 @@ class DuplicateFinderGUI:
             return (0, "")
         
         return (1, directory)
+    
+    def show_deletion_preview(self, group):
+        """Show which files will be kept/deleted"""
+        sorted_group = sorted(group, key=lambda x: self.get_file_priority(x[0]))
+        keep_file = sorted_group[0]
+        delete_files = sorted_group[1:]
+        
+        preview_window = tk.Toplevel(self.root)
+        preview_window.title("Deletion Preview")
+        preview_window.geometry("700x500")
+        
+        main_frame = ttk.Frame(preview_window, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Keep section
+        keep_frame = ttk.LabelFrame(main_frame, text="✅ File to KEEP", padding="10")
+        keep_frame.pack(fill=tk.X, pady=5)
+        
+        keep_name = os.path.basename(keep_file[0])
+        keep_dir = os.path.dirname(keep_file[0])
+        try:
+            keep_size = os.path.getsize(keep_file[0])
+            keep_size_str = f"{keep_size / 1024:.1f} KB"
+        except:
+            keep_size_str = "N/A"
+        
+        ttk.Label(keep_frame, text=f"📄 {keep_name}", font=('TkDefaultFont', 10, 'bold')).pack(anchor=tk.W)
+        ttk.Label(keep_frame, text=f"📁 {keep_dir}").pack(anchor=tk.W)
+        ttk.Label(keep_frame, text=f"💾 {keep_size_str}").pack(anchor=tk.W)
+        
+        # Delete section
+        delete_frame = ttk.LabelFrame(main_frame, text=f"❌ Files to DELETE ({len(delete_files)})", padding="10")
+        delete_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        # Scrollable list
+        list_frame = ttk.Frame(delete_frame)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = ttk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        delete_list = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, height=15)
+        delete_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=delete_list.yview)
+        
+        total_delete_size = 0
+        for file_path, _ in delete_files:
+            filename = os.path.basename(file_path)
+            directory = os.path.dirname(file_path)
+            try:
+                file_size = os.path.getsize(file_path)
+                size_str = f"{file_size / 1024:.1f} KB"
+                total_delete_size += file_size
+            except:
+                size_str = "N/A"
+            
+            delete_list.insert(tk.END, f"📄 {filename} ({size_str}) - {directory}")
+        
+        # Space to free
+        if total_delete_size > 0:
+            if total_delete_size > 1024 * 1024 * 1024:
+                space_str = f"{total_delete_size / (1024**3):.2f} GB"
+            elif total_delete_size > 1024 * 1024:
+                space_str = f"{total_delete_size / (1024**2):.2f} MB"
+            else:
+                space_str = f"{total_delete_size / 1024:.2f} KB"
+            
+            space_label = ttk.Label(delete_frame, text=f"💾 Space to free: {space_str}", 
+                                   font=('TkDefaultFont', 10, 'bold'))
+            space_label.pack(pady=5)
+        
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=10)
+        
+        ttk.Button(button_frame, text="Close", command=preview_window.destroy).pack(side=tk.RIGHT, padx=5)
+        
+        return True
     
     def delete_selected_group(self):
         """Delete all duplicates in the selected group"""
@@ -458,6 +707,9 @@ class DuplicateFinderGUI:
             )
             if not confirm:
                 return
+        
+        # Show preview window
+        self.show_deletion_preview(group)
         
         # Sort by priority
         sorted_group = sorted(group, key=lambda x: self.get_file_priority(x[0]))
@@ -493,6 +745,9 @@ class DuplicateFinderGUI:
         # Remove group from tree
         self.tree.delete(selected_item)
         del self.group_items[selected_item]
+        
+        # Update statistics
+        self.update_statistics()
     
     def delete_all_duplicates(self):
         if not self.duplicate_groups:
@@ -502,6 +757,7 @@ class DuplicateFinderGUI:
         total_to_delete = 0
         files_to_delete = []
         keep_decisions = []
+        total_space_to_free = 0
         
         for group_type, group_similarity, group in self.duplicate_groups:
             if group_type == "EXACT" and len(group) > 1:
@@ -515,12 +771,26 @@ class DuplicateFinderGUI:
                 for file_path, _ in delete_files:
                     files_to_delete.append(file_path)
                     total_to_delete += 1
+                    try:
+                        file_size = os.path.getsize(file_path)
+                        total_space_to_free += file_size
+                    except:
+                        pass
         
         if total_to_delete == 0:
             messagebox.showinfo("Info", "No exact duplicates to delete")
             return
         
-        confirmation_text = f"This will permanently delete {total_to_delete} EXACT duplicate files.\n\n"
+        # Format space to free
+        if total_space_to_free > 1024 * 1024 * 1024:
+            space_str = f"{total_space_to_free / (1024**3):.2f} GB"
+        elif total_space_to_free > 1024 * 1024:
+            space_str = f"{total_space_to_free / (1024**2):.2f} MB"
+        else:
+            space_str = f"{total_space_to_free / 1024:.2f} KB"
+        
+        confirmation_text = f"This will permanently delete {total_to_delete} EXACT duplicate files.\n"
+        confirmation_text += f"💾 Space to free: {space_str}\n\n"
         confirmation_text += "Keeping decisions:\n" + "\n".join(keep_decisions[:5])
         if len(keep_decisions) > 5:
             confirmation_text += f"\n... and {len(keep_decisions) - 5} more groups"
@@ -549,9 +819,9 @@ class DuplicateFinderGUI:
             messagebox.showwarning("Deletion Complete with Errors", error_msg)
         else:
             messagebox.showinfo("✅ Deletion Complete", 
-                              f"Successfully deleted {deleted_count} duplicate files!")
+                              f"Successfully deleted {deleted_count} files!\n💾 Freed up: {space_str}")
         
-        self.status_var.set(f"Deleted {deleted_count} files")
+        self.status_var.set(f"Deleted {deleted_count} files, freed {space_str}")
         self.scan_duplicates()
     
     def clear_results(self):
@@ -560,6 +830,7 @@ class DuplicateFinderGUI:
         self.duplicate_groups = []
         self.group_items = {}
         self.status_var.set("Results cleared")
+        self.stats_var.set("No scan performed yet")
 
 if __name__ == "__main__":
     root = tk.Tk()
