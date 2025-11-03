@@ -6,6 +6,8 @@ from pptx import Presentation
 import re
 from multiprocessing import Pool
 import os
+pythonfrom sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 def extract_word_text(filepath):
     """Extract text from Word document"""
     try:
@@ -97,21 +99,17 @@ def extract_powerpoint_text(filepath):
         return None
 
 def calculate_text_similarity(text1, text2):
-    """Calculate similarity between two texts - same as word_comparer.py"""
+    """Fast TF-IDF similarity"""
     if not text1 or not text2:
         return 0.0
     
-    # Simple word-based similarity (SAME as original word_comparer.py)
-    words1 = set(re.findall(r'\w+', text1.lower()))
-    words2 = set(re.findall(r'\w+', text2.lower()))
-    
-    if not words1 or not words2:
+    try:
+        vectorizer = TfidfVectorizer()
+        tfidf_matrix = vectorizer.fit_transform([text1, text2])
+        similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+        return float(similarity)
+    except:
         return 0.0
-    
-    common_words = words1.intersection(words2)
-    similarity = len(common_words) / max(len(words1), len(words2))
-    
-    return similarity
 
 def compare_files_batch(comparisons):
     """
