@@ -771,12 +771,12 @@ for (size_t i = 0; i < files.size(); i++) {
             }
             
             // Print progress every 50 comparisons
-            if (doneComparisons % 50 == 0) {
-                auto now = std::chrono::steady_clock::now();
-                double elapsed = std::chrono::duration<double>(now - startTime).count();
-                double eta = elapsed / doneComparisons * (totalComparisons - doneComparisons);
-                std::cerr << "Processed " << doneComparisons << "/" << totalComparisons
-                          << " comparisons, ETA: " << (int)eta << "s" << std::endl;
+            if (doneComparisons % 20 == 0) {
+                int progress = static_cast<int>((doneComparisons * 100.0) / totalComparisons);
+                std::cerr << "\r[" << std::string(progress / 2, '#') 
+                << std::string(50 - progress / 2, ' ') 
+                << "] " << progress << "% (" 
+                << doneComparisons << "/" << totalComparisons << ")   " << std::flush;
             }
         }
     }
