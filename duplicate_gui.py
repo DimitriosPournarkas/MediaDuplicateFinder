@@ -203,13 +203,12 @@ class DuplicateFinderGUI:
                 self.progress_bar['value'] = percentage
                 
                 elapsed = time.time() - self.start_time
-                status = f"📁 {self.processed_files} files | 🔍 {self.processed_comparisons} comparisons | ⏱️ {elapsed:.1f}s ({percentage}%)"
+                status = f"📁 {total_done}/{self.total_work} Scans ({percentage}%) | ⏱️ {elapsed:.1f}s"
                 self.status_var.set(status)
             else:
                 self.status_var.set("Scanning...")
             
             self.root.after(1000, self.update_progress)
-    
     def scan_duplicates(self):
         directory = self.dir_var.get()
         if not directory or not os.path.exists(directory):
