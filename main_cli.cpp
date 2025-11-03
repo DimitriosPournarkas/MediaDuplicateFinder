@@ -97,14 +97,6 @@ public:
         // Execute Python script
         std::string currentDir = fs::current_path().string();
         
-        
-        // #ifdef _WIN32
-        //     std::string command = "cd /d \"" + currentDir + "\" && python office_comparer_batch.py < \"" 
-        //                         + inputFile + "\" > \"" + outputFile + "\" 2>nul";
-        // #else
-        //     std::string command = "cd \"" + currentDir + "\" && python3 office_comparer_batch.py < \"" 
-        //                         + inputFile + "\" > \"" + outputFile + "\" 2>/dev/null";
-        // #endif
         #ifdef _WIN32
             std::string command = "cd /d \"" + currentDir + "\" && python office_comparer_batch.py < \"" 
                         + inputFile + "\" > \"" + outputFile + "\"";  // ← 2>nul entfernt!
@@ -431,8 +423,7 @@ std::map<size_t, ComparisonResult> parseJsonResults(
     
     std::map<size_t, ComparisonResult> results;
     
-    std::cerr << "🔥 PARSE: Parsing " << comparisons.size() << " results" << std::endl;
-    std::cerr << "🔥 PARSE: JSON = " << json << std::endl;
+
     
     size_t pos = 0;
     size_t compIndex = 0;
@@ -490,16 +481,13 @@ std::map<size_t, ComparisonResult> parseJsonResults(
         size_t resultIndex = comparisons[compIndex].index;
         results[resultIndex] = result;
         
-        std::cerr << "🔥 PARSE: compIndex=" << compIndex 
-                  << " → resultIndex=" << resultIndex 
-                  << ", similar=" << result.similar 
-                  << ", score=" << result.score << std::endl;
+      
         
         compIndex++;
         pos = json.find("}", pos) + 1;  // Nächstes Objekt
     }
     
-    std::cerr << "🔥 PARSE: Stored " << results.size() << " results in map" << std::endl;
+    
     
     return results;
 }
@@ -575,7 +563,7 @@ std::vector<FileInfo> FileScanner::findFiles(const std::string& directory) {
         std::cerr << "Problematic path: " << e.path1() << std::endl;
     }
     
-    std::cerr << "Found " << results.size() << " files total" << std::endl;
+    
     return results;
 }
 
@@ -636,7 +624,7 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
     const std::vector<FileInfo>& files) {
 
     std::map<std::string, std::vector<FileInfo>> duplicates;
-    std::cerr << "Calculating hashes for exact duplicates..." << std::endl;
+
 
     int processed = 0;
     auto startTime = std::chrono::steady_clock::now();
@@ -651,12 +639,11 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
             auto now = std::chrono::steady_clock::now();
             double elapsed = std::chrono::duration<double>(now - startTime).count();
             double eta = elapsed / processed * (files.size() - processed);
-            std::cerr << "Processed " << processed << "/" << files.size()
-                      << " files, ETA: " << (int)eta << "s" << std::endl;
+            
         }
     }
 
-    std::cerr << "Done calculating hashes!" << std::endl;
+    
 
     for (auto it = duplicates.begin(); it != duplicates.end();) {
         if (it->second.size() < 2)
@@ -684,7 +671,6 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
         totalComparisons += count * (count - 1) / 2;
     }
     
-    std::cerr << "Starting similarity scan with " << totalComparisons << " comparisons..." << std::endl;
     
     // ========== STEP 1: Collect all Office file comparisons ==========
     std::vector<SimilarityFinder::ComparisonPair> officeComparisons;
@@ -703,9 +689,7 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
                 pair.file1 = files[i].path;
                 pair.file2 = files[j].path;
                 pair.index = officeComparisons.size();
-                std::cerr << "🔥 Collecting: " << pair.type << " - " 
-              << fs::path(pair.file1).filename() << " vs " 
-              << fs::path(pair.file2).filename() << std::endl;  // ← NEU
+               
                 
                 comparisonIndexMap[{i, j}] = pair.index;
                 officeComparisons.push_back(pair);
@@ -716,13 +700,7 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
     // ========== STEP 2: Execute batch Office comparison (ONLY ONCE!) ==========
   std::map<size_t, SimilarityFinder::ComparisonResult> officeResults;
 if (!officeComparisons.empty()) {
-    std::cerr << "Processing " << officeComparisons.size() 
-              << " Office file comparisons in batch..." << std::endl;
-    
     officeResults = similarityFinder.compareOfficeFilesBatch(officeComparisons);
-    
-    
-    std::cerr << "Office batch comparison complete!" << std::endl;
 }
 
 // ========== STEP 3: Process all files and use cached Office results ==========
@@ -749,15 +727,13 @@ for (size_t i = 0; i < files.size(); i++) {
                     size_t batchIndex = it->second;
                     auto resultIt = officeResults.find(batchIndex);
                     
-                    std::cerr << "🔥 LOOKUP: batchIndex=" << batchIndex 
-                    << ", found in map=" << (resultIt != officeResults.end()) << std::endl;
                     if (resultIt != officeResults.end()) {
                         similar = resultIt->second.similar;
                         score = resultIt->second.score;
-                        std::cerr << "🔥 BATCH RESULT: similar=" << similar << ", score=" << score << std::endl;
+                       
                         
                     } else {
-                        std::cerr << "🔥 FALLBACK triggered!" << std::endl;
+                        
                         // Fallback if batch failed for this pair
                         if (files[i].type == "word") {
                             auto result = similarityFinder.areWordSimilarFallback(files[i], files[j]);
@@ -771,7 +747,7 @@ for (size_t i = 0; i < files.size(); i++) {
                             auto result = similarityFinder.arePowerPointSimilarFallback(files[i], files[j]);
                             similar = result.first;
                             score = result.second;
-                            std::cerr << "🔥 FALLBACK PPT: similar=" << similar << ", score=" << score << std::endl;
+                            
                         }
                     }
                 }
@@ -790,10 +766,7 @@ for (size_t i = 0; i < files.size(); i++) {
                 group.push_back(similarFile);
                 processed[j] = true;
                 //Debug
-                 std::cerr << "🔥 ADDED files[" << j << "] (" 
-              << fs::path(files[j].path).filename().string()
-              << ") to group, score=" << score << std::endl;
-                
+                 
             }
             
             // Print progress every 50 comparisons
@@ -808,18 +781,11 @@ for (size_t i = 0; i < files.size(); i++) {
     }
     
             if (group.size() > 1) {
-                // DEBUG - NEU
-                std::cerr << "🔥 FINAL GROUP (" << group.size() << " files): ";
-                for (const auto& f : group) {
-                    std::cerr << fs::path(f.path).filename().string() << " ";
-                }
-                std::cerr << std::endl;
-                
-                similarGroups.push_back(group);  // Nur EINMAL!
+                similarGroups.push_back(group);  
             }
 }
 
-std::cerr << "Similarity scan complete!" << std::endl;
+
 return similarGroups;
 }
 // ---------------------------------------------------------
@@ -851,7 +817,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     
-    std::cerr << "Found " << files.size() << " files to process" << std::endl;
+
     
     // Start with just file count
     size_t totalWork = files.size();

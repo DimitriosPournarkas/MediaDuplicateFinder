@@ -127,7 +127,7 @@ def compare_files_batch(comparisons):
         if file_type == 'excel':
             similarity = compare_excel_files(file1, file2)
             similar = similarity > 0.7
-            print(f"DEBUG: Excel similarity={similarity}, similar={similar}", file=sys.stderr)
+            
             results[str(i)] = {'similar': similar, 'score': similarity if similar else 0.0}  # ← Index als Key
         
         # Handle Word files
@@ -156,7 +156,7 @@ def compare_files_batch(comparisons):
                 import os
                 f1_name = os.path.basename(file1)
                 f2_name = os.path.basename(file2)
-                print(f"DEBUG PPT: {f1_name} vs {f2_name} → similarity={similarity:.2f}, similar={similar}", file=sys.stderr)
+                
                 
                 results[str(i)] = {'similar': similar, 'score': similarity if similar else 0.0}
     
