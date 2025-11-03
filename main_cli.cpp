@@ -636,9 +636,10 @@ std::map<std::string, std::vector<FileInfo>> FileScanner::findExactDuplicates(
         processed++;
         
         if (processed % 20 == 0) {
-            auto now = std::chrono::steady_clock::now();
-            double elapsed = std::chrono::duration<double>(now - startTime).count();
-            double eta = elapsed / processed * (files.size() - processed);
+            std::cerr << "Processed " << processed << "/" << files.size() << " files" << std::endl;
+            // auto now = std::chrono::steady_clock::now();
+            // double elapsed = std::chrono::duration<double>(now - startTime).count();
+            // double eta = elapsed / processed * (files.size() - processed);
             
         }
     }
