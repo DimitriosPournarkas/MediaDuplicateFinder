@@ -431,47 +431,75 @@ std::map<size_t, ComparisonResult> parseJsonResults(
     
     std::map<size_t, ComparisonResult> results;
     
+    std::cerr << "🔥 PARSE: Parsing " << comparisons.size() << " results" << std::endl;
+    std::cerr << "🔥 PARSE: JSON = " << json << std::endl;
+    
     size_t pos = 0;
     size_t compIndex = 0;
     
-    while ((pos = json.find("{\"similar\":", pos)) != std::string::npos && 
+    // Suche nach "similar" (mit oder ohne Leerzeichen)
+    while ((pos = json.find("\"similar\"", pos)) != std::string::npos && 
            compIndex < comparisons.size()) {
         
         ComparisonResult result;
         
-        // Extract "similar" value - FIXED!
-        size_t similarPos = json.find(":", pos) + 1;
-        // Skip whitespace
-        while (similarPos < json.length() && json[similarPos] == ' ') similarPos++;
+        // Finde den Wert nach "similar": 
+        size_t colonPos = json.find(":", pos);
+        if (colonPos == std::string::npos) break;
         
-        // Check for "true" or "false"
-        if (json.substr(similarPos, 4) == "true") {
+        size_t valueStart = colonPos + 1;
+        // Skip whitespace
+        while (valueStart < json.length() && 
+               (json[valueStart] == ' ' || json[valueStart] == '\t')) {
+            valueStart++;
+        }
+        
+        // Check for true/false
+        if (json.substr(valueStart, 4) == "true") {
             result.similar = true;
-        } else if (json.substr(similarPos, 5) == "false") {
+        } else if (json.substr(valueStart, 5) == "false") {
             result.similar = false;
         } else {
             result.similar = false;
         }
         
-        
-        
-        // Extract "score" value
-        size_t scorePos = json.find("\"score\":", pos);
-        if (scorePos != std::string::npos) {
-            scorePos = json.find(":", scorePos) + 1;
-            // Skip whitespace
-            while (scorePos < json.length() && json[scorePos] == ' ') scorePos++;
-            size_t endPos = json.find_first_of(",}", scorePos);
-            std::string scoreStr = json.substr(scorePos, endPos - scorePos);
-            result.score = std::stod(scoreStr);
+        // Finde "score"
+        size_t scorePos = json.find("\"score\"", pos);
+        if (scorePos != std::string::npos && scorePos < json.find("}", pos)) {
+            colonPos = json.find(":", scorePos);
+            if (colonPos != std::string::npos) {
+                valueStart = colonPos + 1;
+                // Skip whitespace
+                while (valueStart < json.length() && 
+                       (json[valueStart] == ' ' || json[valueStart] == '\t')) {
+                    valueStart++;
+                }
+                size_t endPos = json.find_first_of(",}", valueStart);
+                std::string scoreStr = json.substr(valueStart, endPos - valueStart);
+                try {
+                    result.score = std::stod(scoreStr);
+                } catch (...) {
+                    result.score = 0.0;
+                }
+            }
         } else {
             result.score = 0.0;
         }
         
-        results[comparisons[compIndex].index] = result;
+        // Nutze die INDEX aus dem ComparisonPair!
+        size_t resultIndex = comparisons[compIndex].index;
+        results[resultIndex] = result;
+        
+        std::cerr << "🔥 PARSE: compIndex=" << compIndex 
+                  << " → resultIndex=" << resultIndex 
+                  << ", similar=" << result.similar 
+                  << ", score=" << result.score << std::endl;
+        
         compIndex++;
-        pos++;
+        pos = json.find("}", pos) + 1;  // Nächstes Objekt
     }
+    
+    std::cerr << "🔥 PARSE: Stored " << results.size() << " results in map" << std::endl;
     
     return results;
 }
