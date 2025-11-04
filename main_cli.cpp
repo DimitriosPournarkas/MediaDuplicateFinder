@@ -63,6 +63,19 @@ public:
         bool similar;
         double score;
     };
+    // Simple structure to hold basic image data loaded in grayscale.
+// 'pixels' points to the raw grayscale pixel buffer loaded by stb_image.
+// 'width', 'height', and 'channels' store the image dimensions and channel count.
+struct ImageData {
+    unsigned char* pixels;
+    int width;
+    int height;
+    int channels;
+};
+
+// Loads an image from disk as a single-channel (grayscale) image using stb_image.
+// Returns an ImageData struct containing the pixel buffer and metadata.
+// The caller is responsible for freeing the memory using stbi_image_free().
 
     // ========== BATCH PROCESSING METHOD (NEW) ==========
     std::map<size_t, ComparisonResult> compareOfficeFilesBatch(
@@ -161,71 +174,64 @@ public:
     }
 
     // ========== IMAGE COMPARISON ==========
-    uint64_t calculateImageHash(const std::string& imagePath) {
-        int width, height, channels;
-        unsigned char* img = stbi_load(imagePath.c_str(), &width, &height, &channels, 1);
-        
-        if (!img) return 0;
-        
-        const int hashWidth = 9;
-        const int hashHeight = 8;
-        unsigned char resized[hashWidth * hashHeight];
-        
-        for (int y = 0; y < hashHeight; y++) {
-            for (int x = 0; x < hashWidth; x++) {
-                int srcX = x * width / hashWidth;
-                int srcY = y * height / hashHeight;
-                resized[y * hashWidth + x] = img[srcY * width + srcX];
+/// Calculate the average hash (aHash) for the given grayscale image
+    uint64_t calculateAverageHash(const ImageData& img) {
+        const int hashSize = 8;
+        const int resizedWidth = hashSize;
+        const int resizedHeight = hashSize;
+
+        std::vector<unsigned char> resized(resizedWidth * resizedHeight);
+        float xRatio = static_cast<float>(img.width) / resizedWidth;
+        float yRatio = static_cast<float>(img.height) / resizedHeight;
+
+        for (int y = 0; y < resizedHeight; ++y) {
+            for (int x = 0; x < resizedWidth; ++x) {
+                int srcX = static_cast<int>(x * xRatio);
+                int srcY = static_cast<int>(y * yRatio);
+                resized[y * resizedWidth + x] = img.pixels[srcY * img.width + srcX];
             }
         }
-        
-        stbi_image_free(img);
-        
+
+        double avg = 0.0;
+        for (auto val : resized) avg += val;
+        avg /= resized.size();
+
         uint64_t hash = 0;
-        int bitIndex = 0;
-        
-        for (int y = 0; y < hashHeight; y++) {
-            for (int x = 0; x < hashWidth - 1; x++) {
-                int left = resized[y * hashWidth + x];
-                int right = resized[y * hashWidth + (x + 1)];
-                
-                if (left < right) {
-                    hash |= (1ULL << bitIndex);
-                }
-                bitIndex++;
-            }
+        for (auto val : resized) {
+            hash = (hash << 1) | (val > avg ? 1 : 0);
         }
-        
+
         return hash;
     }
 
-    uint64_t calculateAverageHash(const std::string& imagePath) {
-        int width, height, channels;
-        unsigned char* img = stbi_load(imagePath.c_str(), &width, &height, &channels, 1);
-        if (!img) return 0;
-        
+    /// Calculate the difference hash (dHash) for the given grayscale image
+    uint64_t calculateDifferenceHash(const ImageData& img) {
         const int hashSize = 8;
-        unsigned char resized[hashSize * hashSize];
-        
-        int total = 0;
-        for (int i = 0; i < hashSize * hashSize; i++) {
-            int srcX = (i % hashSize) * width / hashSize;
-            int srcY = (i / hashSize) * height / hashSize;
-            resized[i] = img[srcY * width + srcX];
-            total += resized[i];
-        }
-        int average = total / (hashSize * hashSize);
-        
-        uint64_t hash = 0;
-        for (int i = 0; i < hashSize * hashSize; i++) {
-            if (resized[i] > average) {
-                hash |= (1ULL << i);
+        const int resizedWidth = hashSize + 1;
+        const int resizedHeight = hashSize;
+
+        std::vector<unsigned char> resized(resizedWidth * resizedHeight);
+        float xRatio = static_cast<float>(img.width) / resizedWidth;
+        float yRatio = static_cast<float>(img.height) / resizedHeight;
+
+        for (int y = 0; y < resizedHeight; ++y) {
+            for (int x = 0; x < resizedWidth; ++x) {
+                int srcX = static_cast<int>(x * xRatio);
+                int srcY = static_cast<int>(y * yRatio);
+                resized[y * resizedWidth + x] = img.pixels[srcY * img.width + srcX];
             }
         }
-        
-        stbi_image_free(img);
+
+        uint64_t hash = 0;
+        for (int y = 0; y < hashSize; ++y) {
+            for (int x = 0; x < hashSize; ++x) {
+                hash = (hash << 1) | (resized[y * resizedWidth + x] > resized[y * resizedWidth + x + 1] ? 1 : 0);
+            }
+        }
+
         return hash;
     }
+
     
     int hammingDistance(uint64_t hash1, uint64_t hash2) {
         uint64_t diff = hash1 ^ hash2;
@@ -238,10 +244,20 @@ public:
     }
 
     std::pair<bool, double> areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
-        uint64_t dhash1 = calculateImageHash(img1.path);
-        uint64_t dhash2 = calculateImageHash(img2.path);
-        uint64_t ahash1 = calculateAverageHash(img1.path);
-        uint64_t ahash2 = calculateAverageHash(img2.path);
+
+        ImageData data1 = loadGrayscaleImage(img1.path);
+        ImageData data2 = loadGrayscaleImage(img2.path);
+
+        if (!data1.pixels || !data2.pixels) return {false, 0.0};
+
+        uint64_t dhash1 = calculateDifferenceHash(data1);
+        uint64_t dhash2 = calculateDifferenceHash(data2);
+        uint64_t ahash1 = calculateAverageHash(data1);
+        uint64_t ahash2 = calculateAverageHash(data2);
+
+        stbi_image_free(data1.pixels);
+        stbi_image_free(data2.pixels);
+
 
         if (!dhash1 || !dhash2 || !ahash1 || !ahash2)
             return {false, 0.0};
@@ -492,19 +508,7 @@ std::map<size_t, ComparisonResult> parseJsonResults(
     return results;
 }
 
-// Simple structure to hold basic image data loaded in grayscale.
-// 'pixels' points to the raw grayscale pixel buffer loaded by stb_image.
-// 'width', 'height', and 'channels' store the image dimensions and channel count.
-struct ImageData {
-    unsigned char* pixels;
-    int width;
-    int height;
-    int channels;
-};
 
-// Loads an image from disk as a single-channel (grayscale) image using stb_image.
-// Returns an ImageData struct containing the pixel buffer and metadata.
-// The caller is responsible for freeing the memory using stbi_image_free().
 ImageData loadGrayscaleImage(const std::string& path) {
     ImageData img;
     img.pixels = stbi_load(path.c_str(), &img.width, &img.height, &img.channels, 1);
