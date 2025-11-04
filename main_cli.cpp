@@ -12,6 +12,8 @@
 #include <chrono>
 #include <ctime>
 #include <locale>
+#include <unordered_map>
+
 #ifdef _WIN32
     #include <windows.h>
     #include <wincrypt.h>
@@ -577,7 +579,7 @@ std::vector<std::vector<FileInfo>> FileScanner::findSimilarFiles(const std::vect
     std::vector<bool> processed(files.size(), false);
     
     // Count comparisons per file type
-    std::map<std::string, int> filesPerType;
+    std::unordered_map<std::string, int> filesPerType;
     for (const auto& file : files) {
         filesPerType[file.type]++;
     }
@@ -772,10 +774,11 @@ int main(int argc, char* argv[]) {
     }
         
         // Calculate comparisons AFTER filtering
-        std::map<std::string, int> filesPerType;
-        for (const auto& file : filesForSimilarity) {
+        std::unordered_map<std::string, int> filesPerType;
+        for (const auto& file : files) {
             filesPerType[file.type]++;
-        }
+    }
+
         
         for (const auto& [type, count] : filesPerType) {
             totalWork += count * (count - 1) / 2;
