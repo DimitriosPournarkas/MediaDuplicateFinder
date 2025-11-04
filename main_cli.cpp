@@ -711,104 +711,94 @@ return similarGroups;
 // Main function
 // ---------------------------------------------------------
 int main(int argc, char* argv[]) {
-    // Windows: UTF-8 Support aktivieren
+    // ===== UTF-8 support for Windows consoles =====
     #ifdef _WIN32
         SetConsoleOutputCP(CP_UTF8);
         SetConsoleCP(CP_UTF8);
         std::setlocale(LC_ALL, ".UTF8");
     #endif
     
+    // ===== Argument check =====
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <directory> [--similar]" << std::endl;
         return 1;
     }
-    
+
     std::string directory = argv[1];
     bool findSimilar = (argc >= 3 && std::string(argv[2]) == "--similar");
-    
+
     std::cerr << "Scanning directory: " << directory << std::endl;
-    
+
     FileScanner scanner;
     auto files = scanner.findFiles(directory);
-    
+
     if (files.empty()) {
-        std::cerr << "No files found" << std::endl;
+        std::cerr << "No files found in directory: " << directory << std::endl;
         return 0;
     }
-    
 
-    
-    // Start with just file count
-    size_t totalWork = files.size();
-    
+    // ===== Step 1: Exact duplicates =====
     auto exactDuplicates = scanner.findExactDuplicates(files);
-    
-    // Output exact duplicates
+
+    // Print exact duplicate groups
     for (const auto& [hash, fileList] : exactDuplicates) {
         if (fileList.size() > 1) {
             std::cout << "EXACT|1.0" << std::endl;
-            for (const auto& file : fileList) {
+            for (const auto& file : fileList)
                 std::cout << file.path << std::endl;
-            }
             std::cout << "---GROUP---" << std::endl;
         }
     }
-    
-    if (findSimilar) {
-        // Filter out exact duplicates
-          std::set<std::string> exactDupPaths;
-    for (const auto& [hash, fileList] : exactDuplicates) {
-        if (fileList.size() > 1) {
-            // Keep the FIRST file, remove the rest
-            for (size_t i = 1; i < fileList.size(); i++) {
-                exactDupPaths.insert(fileList[i].path);
-            }
-        }
-        }
-        
-       std::vector<FileInfo> filesForSimilarity;
-    for (const auto& file : files) {
-        if (exactDupPaths.find(file.path) == exactDupPaths.end()) {
-            filesForSimilarity.push_back(file);
-        }
-    }
-        
-        // Calculate comparisons AFTER filtering
-        std::unordered_map<std::string, int> filesPerType;
-        for (const auto& file : files) {
-            filesPerType[file.type]++;
-    }
 
-        
-        for (const auto& [type, count] : filesPerType) {
-            totalWork += count * (count - 1) / 2;
+    // ===== Step 2: Similar files (optional) =====
+    if (findSimilar) {
+        // Exclude known exact duplicates (keep only first file per group)
+        std::set<std::string> duplicatePaths;
+        for (const auto& [hash, fileList] : exactDuplicates) {
+            for (size_t i = 1; i < fileList.size(); ++i)
+                duplicatePaths.insert(fileList[i].path);
         }
-        
-        // Output total work AFTER calculating everything
-        std::cerr << "TOTAL_WORK:" << totalWork << std::endl;
-        
+
+        // Filter files for similarity comparison
+        std::vector<FileInfo> filesForSimilarity;
+        filesForSimilarity.reserve(files.size());
+        for (const auto& file : files) {
+            if (duplicatePaths.find(file.path) == duplicatePaths.end())
+                filesForSimilarity.push_back(file);
+        }
+
+        // Precompute total comparison workload
+        std::unordered_map<std::string, int> filesPerType;
+        for (const auto& file : filesForSimilarity)
+            filesPerType[file.type]++;
+
+        size_t totalWork = 0;
+        for (const auto& [type, count] : filesPerType)
+            totalWork += static_cast<size_t>(count) * (count - 1) / 2;
+
+        std::cerr << "TOTAL_WORK: " << totalWork << std::endl;
+
+        // Run similarity detection
         auto similarFiles = scanner.findSimilarFiles(filesForSimilarity);
-        
+
+        // Print similar file groups
         for (const auto& group : similarFiles) {
-            if (group.size() > 1) {
-                double avgScore = 0.0;
-                for (const auto& file : group) {
-                    avgScore += file.similarity_score;
-                }
-                avgScore /= group.size();
-                
-                std::cout << "SIMILAR|" << std::fixed << std::setprecision(2) << avgScore << std::endl;
-                for (const auto& file : group) {
-                    std::cout << file.path << "|" << std::fixed << std::setprecision(2) 
-                              << file.similarity_score << std::endl;
-                }
-                std::cout << "---GROUP---" << std::endl;
-            }
+            if (group.size() < 2) continue;
+
+            double avgScore = 0.0;
+            for (const auto& f : group) avgScore += f.similarity_score;
+            avgScore /= group.size();
+
+            std::cout << "SIMILAR|" << std::fixed << std::setprecision(2) << avgScore << std::endl;
+            for (const auto& f : group)
+                std::cout << f.path << "|" << std::fixed << std::setprecision(2)
+                          << f.similarity_score << std::endl;
+            std::cout << "---GROUP---" << std::endl;
         }
     } else {
-        // If not finding similar, output total work now
-        std::cerr << "TOTAL_WORK:" << totalWork << std::endl;
+        // Similarity mode disabled → only print total file count
+        std::cerr << "TOTAL_WORK: " << files.size() << std::endl;
     }
-    
+
     return 0;
 }
