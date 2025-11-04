@@ -12,7 +12,7 @@ The main program is implemented in **C++** for maximum speed and efficiency. For
 - Cross-platform compatibility (Windows, Linux)
 
 ## Usage
-1. Run the main executable (`duplicate_finder.exe` on Windows or `duplicate_finder` on Linux) to scan files.
+1. Run the main executable (`duplicate_finder.exe` on Windows to scan files.
 2. Use the Python GUI to browse results, filter by filename or directory, and delete duplicates safely.
 3. For Office documents, run `Office_comparer_batch.py` to compare and find duplicates.
 
