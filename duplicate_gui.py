@@ -4,7 +4,9 @@ import subprocess
 import os
 import threading
 import time
+import threading
 import queue
+
 
 class DuplicateFinderGUI:
     def __init__(self, root):
@@ -24,10 +26,11 @@ class DuplicateFinderGUI:
         self.process = None
         
         # Variables for live output processing
-        self.stdout_queue = queue.Queue()
-        self.stderr_queue = queue.Queue()
+        self.stdout_queue = queue.Queue(maxsize=1000)  # prevent too large queue
+        self.stderr_queue = queue.Queue(maxsize=1000)
         self.stdout_buffer = ""
         self.stderr_buffer = ""
+        # prevent too large queue
         
         # Progress tracking variables
         self.total_files = 0
