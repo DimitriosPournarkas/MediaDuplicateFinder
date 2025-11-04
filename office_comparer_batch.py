@@ -6,7 +6,7 @@ from pptx import Presentation
 import re
 from multiprocessing import Pool
 import os
-pythonfrom sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 def extract_word_text(filepath):
     """Extract text from Word document"""
