@@ -557,35 +557,41 @@ class DuplicateFinderGUI:
                     label = f"🟡 Similar Files #{similar_count} ({len(group)} files) - Similarity: {avg_sim*100:.0f}%"
                     group_sim_display = f"{avg_sim*100:.0f}%"
                 
+                # Temporarily hide columns to speed up insertion
+                self.tree.config(displaycolumns=())
+
                 group_item = self.tree.insert("", "end", text=label, 
                                             values=("", "", group_sim_display),
                                             tags=('group',))
-                
+
                 self.group_items[group_item] = (group_type, group_similarity, group)
-                
+
+                # Insert all files under this group
                 for file_path, file_sim in group:
+                    filename = os.path.basename(file_path)
+                    directory = os.path.dirname(file_path)
+                    
                     try:
                         file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
                         size_str = f"{file_size / 1024:.1f} KB" if file_size > 0 else "N/A"
                     except:
                         size_str = "N/A"
                     
-                    if group_type == "SIMILAR":
-                        sim_str = f"{file_sim*100:.0f}%"
-                    else:
-                        sim_str = "100%"
-                    
-                    filename = os.path.basename(file_path)
-                    directory = os.path.dirname(file_path)
+                    sim_str = f"{file_sim*100:.0f}%" if group_type == "SIMILAR" else "100%"
                     
                     file_item = self.tree.insert(group_item, "end", 
-                                            text=f"  📄 {filename}", 
-                                            values=(directory, size_str, sim_str))
+                                                text=f"  📄 {filename}", 
+                                                values=(directory, size_str, sim_str))
                     self.tree.set(file_item, "path", file_path)
-                
+
                 self.tree.item(group_item, open=True)
-        
-        self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
+
+                # Restore columns after all insertions
+                self.tree.config(displaycolumns=("path", "size", "similarity"))
+                self.tree.update_idletasks()  # redraw all at once
+
+                self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
+
         
         # Update statistics
         self.update_statistics()
