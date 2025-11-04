@@ -63,29 +63,12 @@ public:
         bool similar;
         double score;
     };
-    // Simple structure to hold basic image data loaded in grayscale.
-// 'pixels' points to the raw grayscale pixel buffer loaded by stb_image.
-// 'width', 'height', and 'channels' store the image dimensions and channel count.
-struct ImageData {
-    unsigned char* pixels;
-    int width;
-    int height;
-    int channels;
-};
 
-// Loads an image from disk as a single-channel (grayscale) image using stb_image.
-// Returns an ImageData struct containing the pixel buffer and metadata.
-// The caller is responsible for freeing the memory using stbi_image_free().
-
-    // ========== BATCH PROCESSING METHOD (NEW) ==========
+    // ================== BATCH PROCESSING ==================
     std::map<size_t, ComparisonResult> compareOfficeFilesBatch(
         const std::vector<ComparisonPair>& comparisons) {
         
-        if (comparisons.empty()) {
-            return {};
-        }
-        
-        
+        if (comparisons.empty()) return {};
         
         // Build JSON input
         std::stringstream jsonInput;
@@ -98,33 +81,26 @@ struct ImageData {
         }
         jsonInput << "]";
         
-        // Create temporary files for communication
         std::string inputFile = "temp_input_" + std::to_string(std::time(nullptr)) + ".json";
         std::string outputFile = "temp_output_" + std::to_string(std::time(nullptr)) + ".json";
         
-        // Write input to file
         std::ofstream outf(inputFile);
         outf << jsonInput.str();
         outf.close();
         
-        // Execute Python script
         std::string currentDir = fs::current_path().string();
         
         #ifdef _WIN32
             std::string command = "cd /d \"" + currentDir + "\" && python office_comparer_batch.py < \"" 
-                        + inputFile + "\" > \"" + outputFile + "\"";  // ← 2>nul entfernt!
+                                  + inputFile + "\" > \"" + outputFile + "\"";
         #else
             std::string command = "cd \"" + currentDir + "\" && python3 office_comparer_batch.py < \"" 
-                        + inputFile + "\" > \"" + outputFile + "\"";  // ← 2>/dev/null entfernt!
+                                  + inputFile + "\" > \"" + outputFile + "\"";
         #endif
-        
         
         int result = system(command.c_str());
         
-        
-        // Read results
         std::map<size_t, ComparisonResult> results;
-        
         if (result == 0) {
             std::ifstream inf(outputFile);
             std::stringstream buffer;
@@ -132,30 +108,23 @@ struct ImageData {
             std::string jsonOutput = buffer.str();
             inf.close();
             
-            
-            
-            // Parse JSON output
             results = parseJsonResults(jsonOutput, comparisons);
-        } else {
-            
         }
         
-        // Cleanup temp files
         std::remove(inputFile.c_str());
         std::remove(outputFile.c_str());
-        
         return results;
     }
 
-    // ========== FALLBACK METHODS ==========
-    std::pair<bool, double> areWordSimilarFallback(const FileInfo& doc1, const FileInfo& doc2) {
+    // ================== FALLBACK METHODS ==================
+    std::pair<bool, double> areWordSimilarFallback(const ::FileInfo& doc1, const ::FileInfo& doc2) {
         std::string name1 = fs::path(doc1.path).stem().string();
         std::string name2 = fs::path(doc2.path).stem().string();
         double nameSim = calculateStringSimilarity(name1, name2);
         return {nameSim > 0.7, nameSim};
     }
     
-    std::pair<bool, double> areExcelSimilarFallback(const FileInfo& xls1, const FileInfo& xls2) {
+    std::pair<bool, double> areExcelSimilarFallback(const ::FileInfo& xls1, const ::FileInfo& xls2) {
         double sizeRatio = (double)std::min(xls1.size_bytes, xls2.size_bytes) 
                          / std::max(xls1.size_bytes, xls2.size_bytes);
         std::string name1 = fs::path(xls1.path).stem().string();
@@ -166,15 +135,27 @@ struct ImageData {
         return {similar, similar ? (sizeRatio + nameSim) / 2.0 : 0.0};
     }
     
-    std::pair<bool, double> arePowerPointSimilarFallback(const FileInfo& ppt1, const FileInfo& ppt2) {
+    std::pair<bool, double> arePowerPointSimilarFallback(const ::FileInfo& ppt1, const ::FileInfo& ppt2) {
         std::string name1 = fs::path(ppt1.path).stem().string();
         std::string name2 = fs::path(ppt2.path).stem().string();
         double nameSim = calculateStringSimilarity(name1, name2);
         return {nameSim > 0.7, nameSim};
     }
 
-    // ========== IMAGE COMPARISON ==========
-/// Calculate the average hash (aHash) for the given grayscale image
+    // ================== IMAGE COMPARISON ==================
+    struct ImageData {
+        unsigned char* pixels;
+        int width;
+        int height;
+        int channels;
+    };
+
+    ImageData loadGrayscaleImage(const std::string& path) {
+        ImageData img;
+        img.pixels = stbi_load(path.c_str(), &img.width, &img.height, &img.channels, 1);
+        return img;
+    }
+
     uint64_t calculateAverageHash(const ImageData& img) {
         const int hashSize = 8;
         const int resizedWidth = hashSize;
@@ -197,14 +178,10 @@ struct ImageData {
         avg /= resized.size();
 
         uint64_t hash = 0;
-        for (auto val : resized) {
-            hash = (hash << 1) | (val > avg ? 1 : 0);
-        }
-
+        for (auto val : resized) hash = (hash << 1) | (val > avg ? 1 : 0);
         return hash;
     }
 
-    /// Calculate the difference hash (dHash) for the given grayscale image
     uint64_t calculateDifferenceHash(const ImageData& img) {
         const int hashSize = 8;
         const int resizedWidth = hashSize + 1;
@@ -223,16 +200,12 @@ struct ImageData {
         }
 
         uint64_t hash = 0;
-        for (int y = 0; y < hashSize; ++y) {
-            for (int x = 0; x < hashSize; ++x) {
+        for (int y = 0; y < hashSize; ++y)
+            for (int x = 0; x < hashSize; ++x)
                 hash = (hash << 1) | (resized[y * resizedWidth + x] > resized[y * resizedWidth + x + 1] ? 1 : 0);
-            }
-        }
-
         return hash;
     }
 
-    
     int hammingDistance(uint64_t hash1, uint64_t hash2) {
         uint64_t diff = hash1 ^ hash2;
         int distance = 0;
@@ -243,11 +216,9 @@ struct ImageData {
         return distance;
     }
 
-    std::pair<bool, double> areImagesSimilar(const FileInfo& img1, const FileInfo& img2) {
-
+    std::pair<bool, double> areImagesSimilar(const ::FileInfo& img1, const ::FileInfo& img2) {
         ImageData data1 = loadGrayscaleImage(img1.path);
         ImageData data2 = loadGrayscaleImage(img2.path);
-
         if (!data1.pixels || !data2.pixels) return {false, 0.0};
 
         uint64_t dhash1 = calculateDifferenceHash(data1);
@@ -258,48 +229,36 @@ struct ImageData {
         stbi_image_free(data1.pixels);
         stbi_image_free(data2.pixels);
 
-
-        if (!dhash1 || !dhash2 || !ahash1 || !ahash2)
-            return {false, 0.0};
+        if (!dhash1 || !dhash2 || !ahash1 || !ahash2) return {false, 0.0};
 
         int dDistance = hammingDistance(dhash1, dhash2);
         int aDistance = hammingDistance(ahash1, ahash2);
-
-        double dSim = 1.0 - (dDistance / 64.0);
-        double aSim = 1.0 - (aDistance / 64.0);
-        double similarity = (dSim + aSim) / 2.0;
-
+        double similarity = (1.0 - dDistance / 64.0 + 1.0 - aDistance / 64.0) / 2.0;
         bool similar = ((dDistance + aDistance) / 2.0) <= 15;
 
         return {similar, similar ? similarity : 0.0};
     }
 
-    // ========== AUDIO COMPARISON ==========
-    std::pair<bool, double> areAudioSimilar(const FileInfo& audio1, const FileInfo& audio2) {
+    // ================== AUDIO COMPARISON ==================
+    std::pair<bool, double> areAudioSimilar(const ::FileInfo& audio1, const ::FileInfo& audio2) {
         std::string name1 = fs::path(audio1.path).stem().string();
         std::string name2 = fs::path(audio2.path).stem().string();
-        
-        std::string name1_lower = name1;
-        std::string name2_lower = name2;
-        std::transform(name1_lower.begin(), name1_lower.end(), name1_lower.begin(), ::tolower);
-        std::transform(name2_lower.begin(), name2_lower.end(), name2_lower.begin(), ::tolower);
-        
-        if (name1_lower == name2_lower) return {true, 1.0};
-        
-        if ((name1_lower + "1") == name2_lower || (name2_lower + "1") == name1_lower) return {true, 0.95};
-        if ((name1_lower + "2") == name2_lower || (name2_lower + "2") == name1_lower) return {true, 0.95};
-        
+        std::transform(name1.begin(), name1.end(), name1.begin(), ::tolower);
+        std::transform(name2.begin(), name2.end(), name2.begin(), ::tolower);
+
+        if (name1 == name2) return {true, 1.0};
+        if ((name1 + "1") == name2 || (name2 + "1") == name1) return {true, 0.95};
+        if ((name1 + "2") == name2 || (name2 + "2") == name1) return {true, 0.95};
+
         double nameSim = calculateStringSimilarity(name1, name2);
         return {nameSim > 0.9, nameSim};
     }
 
-    // ========== TEXT/DOCUMENT COMPARISON ==========
-    std::string extractTextContent(const FileInfo& file) {
+    // ================== TEXT/DOCUMENT COMPARISON ==================
+    std::string extractTextContent(const ::FileInfo& file) {
         std::ifstream fs(file.path);
         if (!fs) return "";
-        
-        std::string content;
-        std::string line;
+        std::string content, line;
         int lineCount = 0;
         while (std::getline(fs, line) && lineCount < 50) {
             content += line + "\n";
@@ -307,53 +266,42 @@ struct ImageData {
         }
         return content;
     }
-    
+
     std::set<std::string> extractWords(const std::string& text) {
         std::set<std::string> words;
         std::stringstream ss(text);
         std::string word;
-        
         while (ss >> word) {
-            word.erase(std::remove_if(word.begin(), word.end(), 
-                      [](char c) { return !std::isalnum(c); }), word.end());
+            word.erase(std::remove_if(word.begin(), word.end(),
+                        [](char c){ return !std::isalnum(c); }), word.end());
             std::transform(word.begin(), word.end(), word.begin(), ::tolower);
-            if (word.length() > 2) {
-                words.insert(word);
-            }
+            if (word.length() > 2) words.insert(word);
         }
         return words;
     }
-    
+
     double calculateTextSimilarity(const std::string& text1, const std::string& text2) {
         if (text1.empty() || text2.empty()) return 0.0;
-        
         std::set<std::string> words1 = extractWords(text1);
         std::set<std::string> words2 = extractWords(text2);
-        
+
         int common = 0;
-        for (const auto& word : words1) {
-            if (words2.count(word)) common++;
-        }
-        
+        for (auto& w : words1) if (words2.count(w)) common++;
         int total = words1.size() + words2.size() - common;
         return total > 0 ? (double)common / total : 0.0;
     }
-    
-    std::pair<bool, double> areDocumentsSimilar(const FileInfo& doc1, const FileInfo& doc2) {
+
+    std::pair<bool, double> areDocumentsSimilar(const ::FileInfo& doc1, const ::FileInfo& doc2) {
         double sizeRatio = (double)std::min(doc1.size_bytes, doc2.size_bytes) 
                          / std::max(doc1.size_bytes, doc2.size_bytes);
-        
         if (sizeRatio < 0.3) return {false, 0.0};
-        
+
         std::string name1 = fs::path(doc1.path).stem().string();
         std::string name2 = fs::path(doc2.path).stem().string();
         double nameSim = calculateStringSimilarity(name1, name2);
-        
-        if (nameSim > 0.7) {
-            return {true, nameSim};
-        }
-        
-        if (doc1.path.find(".txt") != std::string::npos || 
+        if (nameSim > 0.7) return {true, nameSim};
+
+        if (doc1.path.find(".txt") != std::string::npos ||
             doc1.path.find(".csv") != std::string::npos ||
             doc1.path.find(".pdf") != std::string::npos) {
             std::string content1 = extractTextContent(doc1);
@@ -361,63 +309,52 @@ struct ImageData {
             double textSim = calculateTextSimilarity(content1, content2);
             return {textSim > 0.6, textSim};
         }
-        
+
         return {false, 0.0};
     }
 
-    // ========== ARCHIVE COMPARISON ==========
-    std::pair<bool, double> areArchivesSimilar(const FileInfo& arch1, const FileInfo& arch2) {
+    // ================== ARCHIVE COMPARISON ==================
+    std::pair<bool, double> areArchivesSimilar(const ::FileInfo& arch1, const ::FileInfo& arch2) {
         double sizeRatio = (double)std::min(arch1.size_bytes, arch2.size_bytes) 
                          / std::max(arch1.size_bytes, arch2.size_bytes);
-        
         std::string name1 = fs::path(arch1.path).stem().string();
         std::string name2 = fs::path(arch2.path).stem().string();
         double nameSim = calculateStringSimilarity(name1, name2);
-        
         bool similar = sizeRatio > 0.8 && nameSim > 0.6;
-        return {similar, similar ? (sizeRatio + nameSim) / 2.0 : 0.0};
+        return {similar, similar ? (sizeRatio + nameSim)/2.0 : 0.0};
     }
 
-    // ========== MAIN DISPATCHER ==========
-    std::pair<bool, double> areFilesSimilar(const FileInfo& file1, const FileInfo& file2) {
+    // ================== MAIN DISPATCHER ==================
+    std::pair<bool, double> areFilesSimilar(const ::FileInfo& file1, const ::FileInfo& file2) {
         if (file1.type != file2.type) return {false, 0.0};
-        
-        if (file1.type == "image") {
-            return areImagesSimilar(file1, file2);
-        } else if (file1.type == "audio") {
-            return areAudioSimilar(file1, file2);
-        } else if (file1.type == "text") {
-            return areDocumentsSimilar(file1, file2);
-        } else if (file1.type == "other") {
-            return areArchivesSimilar(file1, file2);
-        }
-        // Note: word, excel, powerpoint are handled via batch
+
+        if (file1.type == "image") return areImagesSimilar(file1, file2);
+        else if (file1.type == "audio") return areAudioSimilar(file1, file2);
+        else if (file1.type == "text") return areDocumentsSimilar(file1, file2);
+        else if (file1.type == "other") return areArchivesSimilar(file1, file2);
         return {false, 0.0};
     }
 
-    // ========== UTILITY METHODS ==========
+    // ================== UTILITY ==================
     double calculateStringSimilarity(const std::string& s1, const std::string& s2) {
         std::string s1_lower = s1, s2_lower = s2;
         std::transform(s1_lower.begin(), s1_lower.end(), s1_lower.begin(), ::tolower);
         std::transform(s2_lower.begin(), s2_lower.end(), s2_lower.begin(), ::tolower);
-        
+
         if (s1_lower == s2_lower) return 1.0;
         if (s1_lower.find(s2_lower) != std::string::npos) return 0.8;
         if (s2_lower.find(s1_lower) != std::string::npos) return 0.8;
-        
+
         int common = 0;
-        for (char c1 : s1_lower) {
-            for (char c2 : s2_lower) {
+        for (char c1 : s1_lower)
+            for (char c2 : s2_lower)
                 if (c1 == c2) common++;
-            }
-        }
-        
+
         int total = s1_lower.length() + s2_lower.length();
-        return total > 0 ? (2.0 * common) / total : 0.0;
+        return total > 0 ? (2.0 * common)/total : 0.0;
     }
 
 private:
-    // ========== PRIVATE HELPER METHODS ==========
     std::string escapeJsonString(const std::string& str) {
         std::string escaped;
         for (char c : str) {
@@ -432,91 +369,45 @@ private:
         }
         return escaped;
     }
-    
-std::map<size_t, ComparisonResult> parseJsonResults(
-    const std::string& json, 
-    const std::vector<ComparisonPair>& comparisons) {
-    
-    std::map<size_t, ComparisonResult> results;
-    
 
-    
-    size_t pos = 0;
-    size_t compIndex = 0;
-    
-    // Suche nach "similar" (mit oder ohne Leerzeichen)
-    while ((pos = json.find("\"similar\"", pos)) != std::string::npos && 
-           compIndex < comparisons.size()) {
+    std::map<size_t, ComparisonResult> parseJsonResults(
+        const std::string& json, 
+        const std::vector<ComparisonPair>& comparisons) {
         
-        ComparisonResult result;
-        
-        // Finde den Wert nach "similar": 
-        size_t colonPos = json.find(":", pos);
-        if (colonPos == std::string::npos) break;
-        
-        size_t valueStart = colonPos + 1;
-        // Skip whitespace
-        while (valueStart < json.length() && 
-               (json[valueStart] == ' ' || json[valueStart] == '\t')) {
-            valueStart++;
-        }
-        
-        // Check for true/false
-        if (json.substr(valueStart, 4) == "true") {
-            result.similar = true;
-        } else if (json.substr(valueStart, 5) == "false") {
-            result.similar = false;
-        } else {
-            result.similar = false;
-        }
-        
-        // Finde "score"
-        size_t scorePos = json.find("\"score\"", pos);
-        if (scorePos != std::string::npos && scorePos < json.find("}", pos)) {
-            colonPos = json.find(":", scorePos);
-            if (colonPos != std::string::npos) {
-                valueStart = colonPos + 1;
-                // Skip whitespace
-                while (valueStart < json.length() && 
-                       (json[valueStart] == ' ' || json[valueStart] == '\t')) {
-                    valueStart++;
+        std::map<size_t, ComparisonResult> results;
+        size_t pos = 0, compIndex = 0;
+        while ((pos = json.find("\"similar\"", pos)) != std::string::npos &&
+               compIndex < comparisons.size()) {
+            
+            ComparisonResult result;
+            size_t colonPos = json.find(":", pos);
+            if (colonPos == std::string::npos) break;
+            size_t valueStart = colonPos + 1;
+            while (valueStart < json.length() && (json[valueStart] == ' ' || json[valueStart] == '\t')) valueStart++;
+            if (json.substr(valueStart, 4) == "true") result.similar = true;
+            else result.similar = false;
+
+            size_t scorePos = json.find("\"score\"", pos);
+            if (scorePos != std::string::npos && scorePos < json.find("}", pos)) {
+                colonPos = json.find(":", scorePos);
+                if (colonPos != std::string::npos) {
+                    valueStart = colonPos + 1;
+                    while (valueStart < json.length() && (json[valueStart] == ' ' || json[valueStart] == '\t')) valueStart++;
+                    size_t endPos = json.find_first_of(",}", valueStart);
+                    std::string scoreStr = json.substr(valueStart, endPos - valueStart);
+                    try { result.score = std::stod(scoreStr); } catch(...) { result.score = 0.0; }
                 }
-                size_t endPos = json.find_first_of(",}", valueStart);
-                std::string scoreStr = json.substr(valueStart, endPos - valueStart);
-                try {
-                    result.score = std::stod(scoreStr);
-                } catch (...) {
-                    result.score = 0.0;
-                }
-            }
-        } else {
-            result.score = 0.0;
+            } else result.score = 0.0;
+
+            size_t resultIndex = comparisons[compIndex].index;
+            results[resultIndex] = result;
+            compIndex++;
+            pos = json.find("}", pos) + 1;
         }
-        
-        // Nutze die INDEX aus dem ComparisonPair!
-        size_t resultIndex = comparisons[compIndex].index;
-        results[resultIndex] = result;
-        
-      
-        
-        compIndex++;
-        pos = json.find("}", pos) + 1;  // Nächstes Objekt
+        return results;
     }
-    
-    
-    
-    return results;
-}
-
-
-ImageData loadGrayscaleImage(const std::string& path) {
-    ImageData img;
-    img.pixels = stbi_load(path.c_str(), &img.width, &img.height, &img.channels, 1);
-    return img;
-}
-
-
 };
+
 // ---------------------------------------------------------
 // FileScanner class
 // ---------------------------------------------------------
