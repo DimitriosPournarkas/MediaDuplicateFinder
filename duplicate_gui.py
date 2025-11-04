@@ -506,6 +506,9 @@ class DuplicateFinderGUI:
                     self.group_items[group_item] = (group_type, group_similarity, group)
 
                     # Insert all files under this group
+                    # Temporarily hide columns to prevent redraw on each insert
+                    self.tree.config(displaycolumns=())
+
                     for file_path, file_sim in group:
                         filename = os.path.basename(file_path)
                         directory = os.path.dirname(file_path)
@@ -525,11 +528,13 @@ class DuplicateFinderGUI:
 
                     self.tree.item(group_item, open=True)
 
-                    # Restore columns after all insertions
+                    # Restore columns and update GUI once after all inserts
                     self.tree.config(displaycolumns=("path", "size", "similarity"))
-                    self.tree.update_idletasks()  # redraw all at once
+                    self.tree.update_idletasks()
 
+                    # Configure group tag font
                     self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
+
     def display_results(self):
         if not self.duplicate_groups:
             messagebox.showinfo("No Duplicates", "No duplicate or similar files found!")
@@ -594,13 +599,18 @@ class DuplicateFinderGUI:
 
         
         # Update statistics
+        # Update the GUI once after all inserts to improve performance
+        self.tree.update_idletasks()
+
+        # Update statistics
         self.update_statistics()
-        
+
         # Final status
         status_msg = f"✅ Found {exact_count} exact duplicate groups"
         if similar_count > 0:
             status_msg += f" and {similar_count} similar file groups"
         self.status_var.set(status_msg)
+
 
     def get_file_priority(self, file_path):
         """Calculate priority for file retention"""
