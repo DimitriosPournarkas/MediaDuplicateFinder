@@ -414,126 +414,160 @@ class DuplicateFinderGUI:
     def calculate_wasted_space(self):
         """Calculate total space wasted by duplicates"""
         total_wasted = 0
-        
+
+        # Precompute all file sizes to avoid multiple os.path.getsize calls
+        file_sizes = {}
+        for _, _, group in self.duplicate_groups:
+            for file_path, _ in group:
+                if file_path not in file_sizes:
+                    try:
+                        file_sizes[file_path] = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+                    except:
+                        file_sizes[file_path] = 0
+
+        # Calculate wasted space for exact duplicates
         for group_type, group_similarity, group in self.duplicate_groups:
             if group_type == "EXACT" and len(group) > 1:
-                # Get size of first file (all duplicates have same size)
                 first_file = group[0][0]
-                try:
-                    file_size = os.path.getsize(first_file) if os.path.exists(first_file) else 0
-                    # Wasted space = size * (number of duplicates - 1)
-                    total_wasted += file_size * (len(group) - 1)
-                except:
-                    pass
-        
+                file_size = file_sizes.get(first_file, 0)
+                total_wasted += file_size * (len(group) - 1)
+
         return total_wasted
+
+
     
     def update_statistics(self):
-        """Update statistics display"""
+        """Update statistics display efficiently"""
         exact_count = 0
         similar_count = 0
         exact_files = 0
         similar_files = 0
-        
+
+        # Count groups and files
         for group_type, group_similarity, group in self.duplicate_groups:
             if len(group) > 1:
+                num_files = len(group)
                 if group_type == "EXACT":
                     exact_count += 1
-                    exact_files += len(group)
+                    exact_files += num_files
                 else:
                     similar_count += 1
-                    similar_files += len(group)
-        
+                    similar_files += num_files
+
+        # Calculate wasted space
         wasted_space = self.calculate_wasted_space()
-        
-        stats_text = ""
+
+        # Build statistics string
+        stats_parts = []
         if exact_count > 0:
-            stats_text += f"🔴 {exact_count} exact duplicate groups ({exact_files} files) | "
+            stats_parts.append(f"🔴 {exact_count} exact duplicate groups ({exact_files} files)")
         if similar_count > 0:
-            stats_text += f"🟡 {similar_count} similar file groups ({similar_files} files) | "
-        
+            stats_parts.append(f"🟡 {similar_count} similar file groups ({similar_files} files)")
+
         if wasted_space > 0:
-            if wasted_space > 1024 * 1024 * 1024:  # > 1 GB
+            if wasted_space > 1024**3:  # > 1 GB
                 space_str = f"{wasted_space / (1024**3):.2f} GB"
-            elif wasted_space > 1024 * 1024:  # > 1 MB
+            elif wasted_space > 1024**2:  # > 1 MB
                 space_str = f"{wasted_space / (1024**2):.2f} MB"
             else:
                 space_str = f"{wasted_space / 1024:.2f} KB"
-            stats_text += f"💾 Can free up: {space_str}"
-        
-        if not stats_text:
-            stats_text = "No duplicates or similar files found"
-        
+            stats_parts.append(f"💾 Can free up: {space_str}")
+
+        stats_text = " | ".join(stats_parts) if stats_parts else "No duplicates or similar files found"
+
+        # Update GUI variable once
         self.stats_var.set(stats_text)
 
-    def apply_filter(self):
-        """Apply filter to show only selected file types"""
-        filter_value = self.filter_var.get()
-        
-        # Clear tree
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        
-        # Re-populate based on filter
-        self.group_items = {}
-        exact_count = 0
-        similar_count = 0
-        
-        for idx, (group_type, group_similarity, group) in enumerate(self.duplicate_groups):
-            # Apply filter
-            if filter_value == "exact" and group_type != "EXACT":
-                continue
-            if filter_value == "similar" and group_type != "SIMILAR":
-                continue
-            
-            if len(group) > 1:
+
+    def apply_filter(self, filter_text=""):
+        """
+        Filter the displayed duplicates by filename or directory.
+        Uses detach/reattach instead of deleting Treeview items for better performance.
+        """
+        filter_text = filter_text.lower()
+
+        filtered_exact_count = 0
+        filtered_similar_count = 0
+
+        # Precompute file sizes to avoid repeated os.path.getsize calls
+        file_sizes = {}
+        for group_type, group_similarity, group in self.duplicate_groups:
+            for file_path, _ in group:
+                if file_path not in file_sizes:
+                    try:
+                        file_sizes[file_path] = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+                    except:
+                        file_sizes[file_path] = 0
+
+        # Iterate over all existing group items
+        for group_item, (group_type, group_similarity, group) in self.group_items.items():
+            # Filter files in the group
+            filtered_group = [
+                (path, sim) for path, sim in group
+                if filter_text in os.path.basename(path).lower()
+                or filter_text in os.path.dirname(path).lower()
+            ]
+
+            if len(filtered_group) > 1:
+                # Update group label and similarity display
                 if group_type == "EXACT":
-                    exact_count += 1
-                    label = f"🔴 Exact Duplicates #{exact_count} ({len(group)} files)"
+                    filtered_exact_count += 1
+                    label = f"🔴 Exact Duplicates #{filtered_exact_count} ({len(filtered_group)} files)"
                     group_sim_display = "100%"
                 else:
-                    similar_count += 1
-                    avg_sim = sum(sim for _, sim in group) / len(group)
-                    label = f"🟡 Similar Files #{similar_count} ({len(group)} files) - Similarity: {avg_sim*100:.0f}%"
+                    filtered_similar_count += 1
+                    avg_sim = sum(sim for _, sim in filtered_group) / len(filtered_group)
+                    label = f"🟡 Similar Files #{filtered_similar_count} ({len(filtered_group)} files) - Similarity: {avg_sim*100:.0f}%"
                     group_sim_display = f"{avg_sim*100:.0f}%"
-                    # Temporarily hide columns to speed up insertion
-                    self.tree.config(displaycolumns=())
 
-                    group_item = self.tree.insert("", "end", text=label, 
-                                                values=("", "", group_sim_display),
-                                                tags=('group',))
+                # Reattach group if detached
+                self.tree.reattach(group_item, '', 'end')
+                self.tree.item(group_item, text=label, values=("", "", group_sim_display))
 
-                    self.group_items[group_item] = (group_type, group_similarity, group)
-
-                    # Insert all files under this group
-                    # Temporarily hide columns to prevent redraw on each insert
-                    self.tree.config(displaycolumns=())
-
-                    for file_path, file_sim in group:
+                # Update children
+                children = self.tree.get_children(group_item)
+                for i, (file_path, file_sim) in enumerate(filtered_group):
+                    if i < len(children):
+                        child_item = children[i]
                         filename = os.path.basename(file_path)
                         directory = os.path.dirname(file_path)
-                        
-                        try:
-                            file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
-                            size_str = f"{file_size / 1024:.1f} KB" if file_size > 0 else "N/A"
-                        except:
-                            size_str = "N/A"
-                        
+                        size_str = f"{file_sizes[file_path] / 1024:.1f} KB" if file_sizes[file_path] > 0 else "N/A"
                         sim_str = f"{file_sim*100:.0f}%" if group_type == "SIMILAR" else "100%"
-                        
+                        self.tree.item(child_item, text=f"  📄 {filename}", values=(directory, size_str, sim_str))
+                        self.tree.set(child_item, "path", file_path)
+                    else:
+                        # Insert any extra files if needed
+                        filename = os.path.basename(file_path)
+                        directory = os.path.dirname(file_path)
+                        size_str = f"{file_sizes[file_path] / 1024:.1f} KB" if file_sizes[file_path] > 0 else "N/A"
+                        sim_str = f"{file_sim*100:.0f}%" if group_type == "SIMILAR" else "100%"
                         file_item = self.tree.insert(group_item, "end", 
-                                                    text=f"  📄 {filename}", 
+                                                    text=f"  📄 {filename}",
                                                     values=(directory, size_str, sim_str))
                         self.tree.set(file_item, "path", file_path)
 
-                    self.tree.item(group_item, open=True)
+                # Detach any extra children not in filtered group
+                for extra_child in children[len(filtered_group):]:
+                    self.tree.detach(extra_child)
 
-                    # Restore columns and update GUI once after all inserts
-                    self.tree.config(displaycolumns=("path", "size", "similarity"))
-                    self.tree.update_idletasks()
+                self.tree.item(group_item, open=True)
+            else:
+                # Detach group if no files match filter
+                self.tree.detach(group_item)
 
-                    # Configure group tag font
-                    self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
+        # Update column visibility and redraw
+        self.tree.config(displaycolumns=("path", "size", "similarity"))
+        self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
+        self.tree.update_idletasks()
+
+        # Update statistics and status
+        self.update_statistics()
+        status_msg = f"✅ Found {filtered_exact_count} exact duplicate groups"
+        if filtered_similar_count > 0:
+            status_msg += f" and {filtered_similar_count} similar file groups"
+        self.status_var.set(status_msg)
+
+
 
     def display_results(self):
         if not self.duplicate_groups:
@@ -541,15 +575,17 @@ class DuplicateFinderGUI:
             self.status_var.set("No duplicates found")
             self.stats_var.set("No duplicates or similar files found")
             return
-        
+
         self.status_var.set("Displaying results...")
-        self.root.update_idletasks()
         
         exact_count = 0
         similar_count = 0
-        
         self.group_items = {}
-        
+
+        # Temporarily hide columns and clear tree for bulk insertion
+        self.tree.config(displaycolumns=())
+        self.tree.delete(*self.tree.get_children())
+
         for idx, (group_type, group_similarity, group) in enumerate(self.duplicate_groups):
             if len(group) > 1:
                 if group_type == "EXACT":
@@ -561,14 +597,11 @@ class DuplicateFinderGUI:
                     avg_sim = sum(sim for _, sim in group) / len(group)
                     label = f"🟡 Similar Files #{similar_count} ({len(group)} files) - Similarity: {avg_sim*100:.0f}%"
                     group_sim_display = f"{avg_sim*100:.0f}%"
-                
-                # Temporarily hide columns to speed up insertion
-                self.tree.config(displaycolumns=())
 
-                group_item = self.tree.insert("", "end", text=label, 
+                # Insert group header
+                group_item = self.tree.insert("", "end", text=label,
                                             values=("", "", group_sim_display),
                                             tags=('group',))
-
                 self.group_items[group_item] = (group_type, group_similarity, group)
 
                 # Insert all files under this group
@@ -584,28 +617,20 @@ class DuplicateFinderGUI:
                     
                     sim_str = f"{file_sim*100:.0f}%" if group_type == "SIMILAR" else "100%"
                     
-                    file_item = self.tree.insert(group_item, "end", 
-                                                text=f"  📄 {filename}", 
+                    file_item = self.tree.insert(group_item, "end",
+                                                text=f"  📄 {filename}",
                                                 values=(directory, size_str, sim_str))
                     self.tree.set(file_item, "path", file_path)
 
                 self.tree.item(group_item, open=True)
 
-                # Restore columns after all insertions
-                self.tree.config(displaycolumns=("path", "size", "similarity"))
-                self.tree.update_idletasks()  # redraw all at once
-
-                self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
-
-        
-        # Update statistics
-        # Update the GUI once after all inserts to improve performance
+        # Restore columns and redraw once after all inserts
+        self.tree.config(displaycolumns=("path", "size", "similarity"))
+        self.tree.tag_configure('group', font=('TkDefaultFont', 10, 'bold'))
         self.tree.update_idletasks()
 
-        # Update statistics
+        # Update statistics and status
         self.update_statistics()
-
-        # Final status
         status_msg = f"✅ Found {exact_count} exact duplicate groups"
         if similar_count > 0:
             status_msg += f" and {similar_count} similar file groups"
@@ -768,32 +793,42 @@ class DuplicateFinderGUI:
         self.update_statistics()
     
     def delete_all_duplicates(self):
+        """Delete all exact duplicate files, keeping one per group"""
         if not self.duplicate_groups:
             messagebox.showinfo("Info", "No duplicates to delete")
             return
-        
+
         total_to_delete = 0
         files_to_delete = []
         keep_decisions = []
         total_space_to_free = 0
-        
+
+        # Iterate over duplicate groups
         for group_type, group_similarity, group in self.duplicate_groups:
             if group_type == "EXACT" and len(group) > 1:
+                # Sort files by priority (e.g., modification date, folder preference)
                 sorted_group = sorted(group, key=lambda x: self.get_file_priority(x[0]))
-                
+
+                # Keep the first file, delete the rest
                 keep_file = sorted_group[0]
                 delete_files = sorted_group[1:]
-                
-                keep_decisions.append(f"✓ Keep: {os.path.basename(keep_file[0])} ({os.path.dirname(keep_file[0])})")
-                
+
+                keep_decisions.append(
+                    f"✓ Keep: {os.path.basename(keep_file[0])} ({os.path.dirname(keep_file[0])})"
+                )
+
+                # Collect files to delete and calculate total space
                 for file_path, _ in delete_files:
                     files_to_delete.append(file_path)
                     total_to_delete += 1
                     try:
-                        file_size = os.path.getsize(file_path)
-                        total_space_to_free += file_size
+                        total_space_to_free += os.path.getsize(file_path)
                     except:
-                        pass
+                        pass  # Ignore files that can't be accessed
+
+        # Optional: Update GUI once after collecting all files
+        self.status_var.set(f"Preparing to delete {total_to_delete} files, freeing {total_space_to_free / 1024:.2f} KB")
+
         
         if total_to_delete == 0:
             messagebox.showinfo("Info", "No exact duplicates to delete")
