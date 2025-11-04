@@ -1,13 +1,14 @@
 import sys
 import json
 from docx import Document
-import pandas as pd
 from pptx import Presentation
 import re
 from multiprocessing import Pool
 import os
+from openpyxl import load_workbook
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
 def extract_word_text(filepath):
     """Extract text from Word document"""
     try:
@@ -23,67 +24,104 @@ def extract_word_text(filepath):
     except Exception as e:
         return None
 
-def compare_excel_files(file1, file2):
-    """Compare Excel files using pandas - flexible comparison"""
+def load_excel_fast(filepath):
+    """
+    Fast Excel loading using openpyxl directly
+    Returns dict of sheet_name -> list of rows (as lists)
+    """
     try:
-        # Read Excel files
-        df1 = pd.read_excel(file1, sheet_name=None)
-        df2 = pd.read_excel(file2, sheet_name=None)
+        # read_only=True and data_only=True make it MUCH faster
+        wb = load_workbook(filepath, read_only=True, data_only=True)
+        
+        sheets_data = {}
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            
+            # Read all rows at once (generator for memory efficiency)
+            rows = []
+            for row in ws.iter_rows(values_only=True):
+                # Skip completely empty rows
+                if any(cell is not None for cell in row):
+                    rows.append(row)
+            
+            sheets_data[sheet_name] = rows
+        
+        wb.close()
+        return sheets_data
+        
+    except Exception as e:
+        print(f"Error loading Excel {filepath}: {e}", file=sys.stderr)
+        return None
+
+def compare_excel_fast(data1, data2):
+    """
+    Compare Excel data loaded with openpyxl (fast!)
+    data1, data2 = dict of sheet_name -> list of rows
+    """
+    try:
+        if data1 is None or data2 is None:
+            return 0.0
         
         # Get common sheet names
-        common_sheets = set(df1.keys()).intersection(set(df2.keys()))
+        common_sheets = set(data1.keys()).intersection(set(data2.keys()))
         
         if not common_sheets:
             return 0.0
-            
+        
         total_similarity = 0
         sheet_count = 0
         
         for sheet_name in common_sheets:
-            sheet_similarity = compare_sheets(df1[sheet_name], df2[sheet_name])
+            sheet_similarity = compare_sheets_fast(data1[sheet_name], data2[sheet_name])
             total_similarity += sheet_similarity
             sheet_count += 1
         
         if sheet_count == 0:
             return 0.0
-            
-        overall_similarity = total_similarity / sheet_count
-        return overall_similarity
+        
+        return total_similarity / sheet_count
         
     except Exception as e:
+        print(f"Error comparing Excel: {e}", file=sys.stderr)
         return 0.0
 
-def compare_sheets(df1, df2):
-    """Compare two Excel sheets - flexible size comparison"""
-    # Get dimensions
-    rows1, cols1 = df1.shape
-    rows2, cols2 = df2.shape
-    
-    # Find common columns
-    common_cols = set(df1.columns).intersection(set(df2.columns))
-    if not common_cols:
+def compare_sheets_fast(rows1, rows2):
+    """
+    Compare two sheets (as lists of rows)
+    Much faster than pandas approach!
+    """
+    if not rows1 or not rows2:
         return 0.0
     
-    # Compare overlapping region only
-    min_rows = min(rows1, rows2)
+    # Compare overlapping region
+    min_rows = min(len(rows1), len(rows2))
+    
     matching_cells = 0
     compared_cells = 0
     
-    for col in common_cols:
-        # Get entire columns at once 
-        col1 = df1[col].iloc[:min_rows]
-        col2 = df2[col].iloc[:min_rows]
+    for i in range(min_rows):
+        row1 = rows1[i]
+        row2 = rows2[i]
         
-        # Vectorized comparison inC! 
-        both_nan = pd.isna(col1) & pd.isna(col2)
-        both_equal = (col1.astype(str) == col2.astype(str))
+        # Compare up to minimum column count
+        min_cols = min(len(row1), len(row2))
         
-        matches = (both_nan | both_equal).sum()
-        
-        matching_cells += matches
-        compared_cells += len(col1)
-
-    # Calculate similarity based on compared cells
+        for j in range(min_cols):
+            val1 = row1[j]
+            val2 = row2[j]
+            
+            compared_cells += 1
+            
+            # Both None/empty
+            if val1 is None and val2 is None:
+                matching_cells += 1
+            # Both have same value
+            elif val1 == val2:
+                matching_cells += 1
+            # Try string comparison (for numbers vs strings)
+            elif str(val1) == str(val2):
+                matching_cells += 1
+    
     return matching_cells / compared_cells if compared_cells > 0 else 0.0
 
 def extract_powerpoint_text(filepath):
@@ -153,7 +191,7 @@ def compare_files_batch(comparisons):
             if data1 is None or data2 is None:
                 similarity = 0.0
             else:
-                similarity = compare_excel_dataframes(data1, data2)
+                similarity = compare_excel_fast(data1, data2)
             similar = similarity > 0.7
             results[str(i)] = {'similar': similar, 'score': similarity if similar else 0.0}
         
@@ -184,7 +222,7 @@ def load_file(filepath, file_type):
     """
     try:
         if file_type == 'excel':
-            return pd.read_excel(filepath, sheet_name=None)
+            return load_excel_fast(filepath)
         elif file_type == 'word':
             return extract_word_text(filepath)
         elif file_type == 'powerpoint':
@@ -193,32 +231,6 @@ def load_file(filepath, file_type):
         print(f"Error loading {filepath}: {e}", file=sys.stderr)
         return None
 
-
-def compare_excel_dataframes(df_dict1, df_dict2):
-    """
-    Compare already-loaded Excel dataframes (fast!)
-    """
-    try:
-        common_sheets = set(df_dict1.keys()).intersection(set(df_dict2.keys()))
-        
-        if not common_sheets:
-            return 0.0
-            
-        total_similarity = 0
-        sheet_count = 0
-        
-        for sheet_name in common_sheets:
-            sheet_similarity = compare_sheets(df_dict1[sheet_name], df_dict2[sheet_name])
-            total_similarity += sheet_similarity
-            sheet_count += 1
-        
-        if sheet_count == 0:
-            return 0.0
-            
-        return total_similarity / sheet_count
-        
-    except Exception as e:
-        return 0.0
 
 if __name__ == "__main__":
     

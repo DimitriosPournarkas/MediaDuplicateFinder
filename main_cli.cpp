@@ -491,6 +491,27 @@ std::map<size_t, ComparisonResult> parseJsonResults(
     
     return results;
 }
+
+// Simple structure to hold basic image data loaded in grayscale.
+// 'pixels' points to the raw grayscale pixel buffer loaded by stb_image.
+// 'width', 'height', and 'channels' store the image dimensions and channel count.
+struct ImageData {
+    unsigned char* pixels;
+    int width;
+    int height;
+    int channels;
+};
+
+// Loads an image from disk as a single-channel (grayscale) image using stb_image.
+// Returns an ImageData struct containing the pixel buffer and metadata.
+// The caller is responsible for freeing the memory using stbi_image_free().
+ImageData loadGrayscaleImage(const std::string& path) {
+    ImageData img;
+    img.pixels = stbi_load(path.c_str(), &img.width, &img.height, &img.channels, 1);
+    return img;
+}
+
+
 };
 // ---------------------------------------------------------
 // FileScanner class
