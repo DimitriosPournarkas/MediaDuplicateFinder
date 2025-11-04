@@ -9,6 +9,7 @@ import queue
 class DuplicateFinderGUI:
     def __init__(self, root):
         self.root = root
+        self.file_sizes = {}  # key: file_path, value: file size in bytes
         self.root.title("Duplicate File Finder - C++ Backend")
         self.root.geometry("1200x750")
         
@@ -429,7 +430,8 @@ class DuplicateFinderGUI:
         for group_type, group_similarity, group in self.duplicate_groups:
             if group_type == "EXACT" and len(group) > 1:
                 first_file = group[0][0]
-                file_size = file_sizes.get(first_file, 0)
+                # Use precomputed file size from self.file_sizes
+                file_size = self.file_sizes.get(first_file, 0)
                 total_wasted += file_size * (len(group) - 1)
 
         return total_wasted
@@ -463,7 +465,8 @@ class DuplicateFinderGUI:
             stats_parts.append(f"🔴 {exact_count} exact duplicate groups ({exact_files} files)")
         if similar_count > 0:
             stats_parts.append(f"🟡 {similar_count} similar file groups ({similar_files} files)")
-
+            
+        wasted_space = self.calculate_wasted_space()  # exact duplicates only
         if wasted_space > 0:
             if wasted_space > 1024**3:  # > 1 GB
                 space_str = f"{wasted_space / (1024**3):.2f} GB"
@@ -483,6 +486,7 @@ class DuplicateFinderGUI:
         """
         Filter the displayed duplicates by filename or directory.
         Uses detach/reattach instead of deleting Treeview items for better performance.
+        Precomputes file sizes to avoid repeated os.path.getsize calls.
         """
         filter_text = filter_text.lower()
 
@@ -527,21 +531,18 @@ class DuplicateFinderGUI:
                 # Update children
                 children = self.tree.get_children(group_item)
                 for i, (file_path, file_sim) in enumerate(filtered_group):
+                    size_str = f"{file_sizes[file_path] / 1024:.1f} KB" if file_sizes[file_path] > 0 else "N/A"
+                    sim_str = f"{file_sim*100:.0f}%" if group_type == "SIMILAR" else "100%"
+                    filename = os.path.basename(file_path)
+                    directory = os.path.dirname(file_path)
+
                     if i < len(children):
                         child_item = children[i]
-                        filename = os.path.basename(file_path)
-                        directory = os.path.dirname(file_path)
-                        size_str = f"{file_sizes[file_path] / 1024:.1f} KB" if file_sizes[file_path] > 0 else "N/A"
-                        sim_str = f"{file_sim*100:.0f}%" if group_type == "SIMILAR" else "100%"
                         self.tree.item(child_item, text=f"  📄 {filename}", values=(directory, size_str, sim_str))
                         self.tree.set(child_item, "path", file_path)
                     else:
                         # Insert any extra files if needed
-                        filename = os.path.basename(file_path)
-                        directory = os.path.dirname(file_path)
-                        size_str = f"{file_sizes[file_path] / 1024:.1f} KB" if file_sizes[file_path] > 0 else "N/A"
-                        sim_str = f"{file_sim*100:.0f}%" if group_type == "SIMILAR" else "100%"
-                        file_item = self.tree.insert(group_item, "end", 
+                        file_item = self.tree.insert(group_item, "end",
                                                     text=f"  📄 {filename}",
                                                     values=(directory, size_str, sim_str))
                         self.tree.set(file_item, "path", file_path)
@@ -566,6 +567,7 @@ class DuplicateFinderGUI:
         if filtered_similar_count > 0:
             status_msg += f" and {filtered_similar_count} similar file groups"
         self.status_var.set(status_msg)
+
 
 
 
@@ -803,8 +805,18 @@ class DuplicateFinderGUI:
         keep_decisions = []
         total_space_to_free = 0
 
+        # Precompute file sizes to avoid repeated os.path.getsize calls
+        file_sizes = {}
+        for group_type, _, group in self.duplicate_groups:
+            for file_path, _ in group:
+                if file_path not in file_sizes:
+                    try:
+                        file_sizes[file_path] = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+                    except:
+                        file_sizes[file_path] = 0
+
         # Iterate over duplicate groups
-        for group_type, group_similarity, group in self.duplicate_groups:
+        for group_type, _, group in self.duplicate_groups:
             if group_type == "EXACT" and len(group) > 1:
                 # Sort files by priority (e.g., modification date, folder preference)
                 sorted_group = sorted(group, key=lambda x: self.get_file_priority(x[0]))
@@ -821,61 +833,75 @@ class DuplicateFinderGUI:
                 for file_path, _ in delete_files:
                     files_to_delete.append(file_path)
                     total_to_delete += 1
-                    try:
-                        total_space_to_free += os.path.getsize(file_path)
-                    except:
-                        pass  # Ignore files that can't be accessed
+                    total_space_to_free += file_sizes.get(file_path, 0)
+
 
         # Optional: Update GUI once after collecting all files
-        self.status_var.set(f"Preparing to delete {total_to_delete} files, freeing {total_space_to_free / 1024:.2f} KB")
+        self.status_var.set(f"Preparing to delete {total_to_delete} files...")
 
-        
         if total_to_delete == 0:
             messagebox.showinfo("Info", "No exact duplicates to delete")
             return
-        
-        # Format space to free
-        if total_space_to_free > 1024 * 1024 * 1024:
+
+        # Precompute file sizes to avoid repeated os.path.getsize calls
+        file_sizes = {}
+        for file_path in files_to_delete:
+            if file_path not in file_sizes:
+                try:
+                    file_sizes[file_path] = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+                except:
+                    file_sizes[file_path] = 0
+
+        total_space_to_free = sum(file_sizes.values())
+
+        # Format space for display
+        if total_space_to_free > 1024**3:  # > 1 GB
             space_str = f"{total_space_to_free / (1024**3):.2f} GB"
-        elif total_space_to_free > 1024 * 1024:
+        elif total_space_to_free > 1024**2:  # > 1 MB
             space_str = f"{total_space_to_free / (1024**2):.2f} MB"
         else:
             space_str = f"{total_space_to_free / 1024:.2f} KB"
-        
-        confirmation_text = f"This will permanently delete {total_to_delete} EXACT duplicate files.\n"
-        confirmation_text += f"💾 Space to free: {space_str}\n\n"
-        confirmation_text += "Keeping decisions:\n" + "\n".join(keep_decisions[:5])
+
+        # Build confirmation text
+        confirmation_text = (
+            f"This will permanently delete {total_to_delete} EXACT duplicate files.\n"
+            f"💾 Space to free: {space_str}\n\n"
+            "Keeping decisions:\n" + "\n".join(keep_decisions[:5])
+        )
         if len(keep_decisions) > 5:
             confirmation_text += f"\n... and {len(keep_decisions) - 5} more groups"
-        
+
         confirmation_text += "\n\n✅ One original kept per group\n⚠️ Similar files will NOT be deleted"
-        
+
         confirm = messagebox.askyesno("⚠️ Confirm Deletion", confirmation_text)
-        
         if not confirm:
             return
-        
+
+        # Delete files
         deleted_count = 0
         errors = []
-        
         for file_path in files_to_delete:
             try:
                 os.remove(file_path)
                 deleted_count += 1
             except Exception as e:
                 errors.append(f"{os.path.basename(file_path)}: {e}")
-        
+
+        # Show results
         if errors:
             error_msg = f"✅ Deleted {deleted_count} files\n\n⚠️ Errors:\n\n" + "\n".join(errors[:5])
             if len(errors) > 5:
                 error_msg += f"\n\n... and {len(errors) - 5} more errors"
             messagebox.showwarning("Deletion Complete with Errors", error_msg)
         else:
-            messagebox.showinfo("✅ Deletion Complete", 
-                              f"Successfully deleted {deleted_count} files!\n💾 Freed up: {space_str}")
-        
+            messagebox.showinfo("✅ Deletion Complete",
+                                f"Successfully deleted {deleted_count} files!\n💾 Freed up: {space_str}")
+
+        # Update status and refresh duplicates
         self.status_var.set(f"Deleted {deleted_count} files, freed {space_str}")
         self.scan_duplicates()
+
+
     
     def clear_results(self):
         for item in self.tree.get_children():
