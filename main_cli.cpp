@@ -754,19 +754,22 @@ int main(int argc, char* argv[]) {
     
     if (findSimilar) {
         // Filter out exact duplicates
-        std::set<std::string> exactDupPaths;
-        for (const auto& [hash, fileList] : exactDuplicates) {
-            for (const auto& file : fileList) {
-                exactDupPaths.insert(file.path);
+          std::set<std::string> exactDupPaths;
+    for (const auto& [hash, fileList] : exactDuplicates) {
+        if (fileList.size() > 1) {
+            // Keep the FIRST file, remove the rest
+            for (size_t i = 1; i < fileList.size(); i++) {
+                exactDupPaths.insert(fileList[i].path);
             }
+        }
         }
         
-        std::vector<FileInfo> filesForSimilarity;
-        for (const auto& file : files) {
-            if (exactDupPaths.find(file.path) == exactDupPaths.end()) {
-                filesForSimilarity.push_back(file);
-            }
+       std::vector<FileInfo> filesForSimilarity;
+    for (const auto& file : files) {
+        if (exactDupPaths.find(file.path) == exactDupPaths.end()) {
+            filesForSimilarity.push_back(file);
         }
+    }
         
         // Calculate comparisons AFTER filtering
         std::map<std::string, int> filesPerType;
