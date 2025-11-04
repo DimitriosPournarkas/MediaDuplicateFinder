@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import sys
 import json
 from docx import Document
@@ -496,5 +495,4 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as e:
         print(json.dumps({'error': str(e)}), file=sys.stderr)
->>>>>>> 885954155348684cfe888d6835d09c2219de826e
         sys.exit(1)
