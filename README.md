@@ -53,6 +53,8 @@ The following files **must be in the same directory**:
 
 ![Delete_similar](gui_pictures/gui_delete_similar_preview.png)
 
+![Delete_similar](gui_pictures/gui_delete_duplicates_warning_window.png)
+
 ---
 
 ## 🛠️ Build Instructions
