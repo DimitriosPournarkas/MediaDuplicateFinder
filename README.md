@@ -238,4 +238,4 @@ All third-party licenses are compatible with the MIT License.
 
 ## ⭐ Support
 
-If you find this project useful, please consider giving it a ⭐ on GitHub!
+If you find this project useful, please consider giving it a ⭐!
