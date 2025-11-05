@@ -43,7 +43,7 @@ The following files **must be in the same directory**:
 ![Start](gui_pictures/gui_start.png)
 2. Click on Browse and select the folder you want to scan.
 3. Click on Scan Duplicates & Similar Files. It will automatically scan all subfolders.
-[Working](gui_pictures/gui_working.png)
+![Working](gui_pictures/gui_working.png)
 ---
 
 ## 🛠️ Build Instructions
