@@ -39,5 +39,4 @@ For Office document comparison, the script `office_comparer_batch.py` is used.
 - Required Python packages:
   ```bash
   pip install pillow numpy openpyxl python-docx pydub tk
-```
 
