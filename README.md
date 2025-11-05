@@ -40,6 +40,7 @@ The following files **must be in the same directory**:
 
 ## 🖥️ Usage
 1. Run **`duplicate_gui.py`**
+![Start](gui_pictures/gui_start.png)
 
 ---
 
