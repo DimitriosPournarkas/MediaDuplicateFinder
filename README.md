@@ -1,11 +1,11 @@
 # MediaDuplicateFinder
+**MediaDuplicateFinder** is a high-performance duplicate file finder that supports **any file type** — including images, audio, text, and Office documents.
 
-**MediaDuplicateFinder** is a high-performance duplicate file finder that supports **any file type** — including images, audio, text, and Office documents.  
-It detects both **exact duplicates** and **similar files**, even across different formats, sizes, and quality levels.
+It detects both **exact duplicates** (via file hashing) and **similar files** (via perceptual hashing and content analysis), even across different formats, sizes, and quality levels.
 
 The core scanning engine is written in **C++** for maximum speed and efficiency.  
 A **Python GUI** provides an intuitive interface for scanning, filtering, and safely deleting duplicates.  
-For Office document comparison, the script `office_comparer_batch.py` is used.
+For Office document comparison, a specialized Python script (`office_comparer_batch.py`) enables batch processing of Word, Excel, and PowerPoint files.
 
 ---
 
@@ -16,10 +16,14 @@ Simply download the ZIP file, extract it, and run `duplicate_gui.py`.
 ---
 
 ## 🚀 Key Features
-- Ultra-fast duplicate detection for large file collections  
-- Finds **similar files** using perceptual hashing (images) and audio fingerprinting (audio)  
-- Supports text and Office file comparison  
-- Modern **Tkinter-based GUI** for easy file browsing and duplicate management    
+- **Ultra-fast duplicate detection** for large file collections
+- Finds **similar images** using perceptual hashing (Average Hash + Difference Hash)
+- **Audio similarity** detection via metadata and filename analysis
+- **Office document comparison** (Word, Excel, PowerPoint) with deep content analysis
+- **Text file comparison** using content-based similarity matching
+- High-performance **C++ core** with integrated **stb_image** library
+- Modern **Tkinter-based GUI** for easy file browsing and duplicate management
+- **Batch processing** for efficient Office file comparisons   
 ---
 
 ## 🧩 Components Overview
