@@ -18,7 +18,6 @@ The main program is implemented in **C++** for maximum speed and efficiency. For
 
 ## Installation
 - Ensure Python 3.x is installed.
-- Install required packages: `pip install -r requirements.txt`
 - Make sure the C++ executable is built and available in the repository folder.
 
 ## License
