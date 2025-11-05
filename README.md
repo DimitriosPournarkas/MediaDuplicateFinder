@@ -25,16 +25,20 @@ For Office document comparison, the script `office_comparer_batch.py` is used.
 
 ---
 
-## 🖥️ Usage
-1. Run **`duplicate_gui.py`**
----
-
 ## ⚙️ Requirements
 - **Python 3.8+**
 - Required Python packages:
   ```bash
   pip install pillow numpy openpyxl python-docx python-pptx scikit-learn pydub
 The C++ executable (duplicate_finder.exe or duplicate_finder) must be in the same directory as the GUI.
+
+---
+
+## 🖥️ Usage
+1. Run **`duplicate_gui.py`**
+
+---
+
 ## 🛠️ Build Instructions
 
 If you want to build the C++ backend manually:
