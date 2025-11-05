@@ -11,7 +11,9 @@ For Office document comparison, a specialized Python script (`office_comparer_ba
 
 ## 📦 Download
 The latest precompiled version (including `duplicate_gui.py`, `office_comparer_batch.py`, and `duplicate_finder.exe`) can be downloaded from the [**Releases** section](../../releases/latest).  
-Simply download the ZIP file, extract it, and run `duplicate_gui.py`.
+Simply download the ZIP file, extract it, and run `duplicate_gui.py`.  
+Make sure that all three files are located in the same directory.
+
 
 ---
 
