@@ -47,7 +47,7 @@ The following files **must be in the same directory**:
 4. Finished Scan: You can see the results.
 ![Finished](gui_pictures/gui_finished.png)
 5. Delete files: You can now click on **Delete All Exact Duplicates**, or delete similar files manually, or delete similar groups.
-![Delete_file](gui_pictures/gui_delete_file.png) or ![Delete_similar](gui_pictures/gui_delete_duplicates_warning_window.png)
+![Delete_file](gui_pictures/gui_delete_file.png) or ![Delete_warning](gui_pictures/gui_delete_duplicates_warning_window.png)
 
 ![Delete_group](gui_pictures/gui_delete_group.png)
 
