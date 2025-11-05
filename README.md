@@ -201,12 +201,7 @@ If you want to compile the C++ backend manually:
 
 ### **Windows (MinGW/MSVC)**
 ```bash
-g++ -o duplicate_finder.exe duplicate_finder.cpp -std=c++17 -lcrypt32
-```
-
-### **Linux/Mac**
-```bash
-g++ -o duplicate_finder duplicate_finder.cpp -std=c++17 -lstdc++fs
+g++ -std=c++17 main_cli.cpp -o duplicate_finder
 ```
 
 Make sure `stb_image.h` is in the same directory as `duplicate_finder.cpp`.
