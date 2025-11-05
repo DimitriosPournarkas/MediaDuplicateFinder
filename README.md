@@ -48,8 +48,11 @@ The following files **must be in the same directory**:
 ![Finished](gui_pictures/gui_finished.png)
 5. Delete files: You can now click on **Delete All Exact Duplicates**, or delete similar files manually, or delete similar groups.
 ![Delete_file](gui_pictures/gui_delete_file.png)
+
 ![Delete_group](gui_pictures/gui_delete_group.png)
+
 ![Delete_similar](gui_pictures/gui_delete_similar_preview.png)
+
 ---
 
 ## 🛠️ Build Instructions
