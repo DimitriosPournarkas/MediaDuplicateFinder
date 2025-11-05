@@ -485,13 +485,13 @@ class DuplicateFinderGUI:
         self.stats_var.set(stats_text)
 
 
-    def apply_filter(self, filter_text=""):
+    def apply_filter(self):
         """
-        Filter the displayed duplicates by filename or directory.
+        Filter the displayed duplicates by type (all/exact/similar).
         Uses detach/reattach instead of deleting Treeview items for better performance.
         Precomputes file sizes to avoid repeated os.path.getsize calls.
         """
-        filter_text = filter_text.lower()
+        filter_mode = self.filter_var.get()  # "all", "exact", or "similar"
 
         filtered_exact_count = 0
         filtered_similar_count = 0
@@ -508,23 +508,25 @@ class DuplicateFinderGUI:
 
         # Iterate over all existing group items
         for group_item, (group_type, group_similarity, group) in self.group_items.items():
-            # Filter files in the group
-            filtered_group = [
-                (path, sim) for path, sim in group
-                if filter_text in os.path.basename(path).lower()
-                or filter_text in os.path.dirname(path).lower()
-            ]
+            # Check if group should be shown based on filter
+            show_group = False
+            if filter_mode == "all":
+                show_group = True
+            elif filter_mode == "exact" and group_type == "EXACT":
+                show_group = True
+            elif filter_mode == "similar" and group_type == "SIMILAR":
+                show_group = True
 
-            if len(filtered_group) > 1:
+            if show_group and len(group) > 1:
                 # Update group label and similarity display
                 if group_type == "EXACT":
                     filtered_exact_count += 1
-                    label = f"🔴 Exact Duplicates #{filtered_exact_count} ({len(filtered_group)} files)"
+                    label = f"🔴 Exact Duplicates #{filtered_exact_count} ({len(group)} files)"
                     group_sim_display = "100%"
                 else:
                     filtered_similar_count += 1
-                    avg_sim = sum(sim for _, sim in filtered_group) / len(filtered_group)
-                    label = f"🟡 Similar Files #{filtered_similar_count} ({len(filtered_group)} files) - Similarity: {avg_sim*100:.0f}%"
+                    avg_sim = sum(sim for _, sim in group) / len(group)
+                    label = f"🟡 Similar Files #{filtered_similar_count} ({len(group)} files) - Similarity: {avg_sim*100:.0f}%"
                     group_sim_display = f"{avg_sim*100:.0f}%"
 
                 # Reattach group if detached
@@ -533,7 +535,7 @@ class DuplicateFinderGUI:
 
                 # Update children
                 children = self.tree.get_children(group_item)
-                for i, (file_path, file_sim) in enumerate(filtered_group):
+                for i, (file_path, file_sim) in enumerate(group):
                     size_str = f"{file_sizes[file_path] / 1024:.1f} KB" if file_sizes[file_path] > 0 else "N/A"
                     sim_str = f"{file_sim*100:.0f}%" if group_type == "SIMILAR" else "100%"
                     filename = os.path.basename(file_path)
@@ -550,13 +552,9 @@ class DuplicateFinderGUI:
                                                     values=(directory, size_str, sim_str))
                         self.tree.set(file_item, "path", file_path)
 
-                # Detach any extra children not in filtered group
-                for extra_child in children[len(filtered_group):]:
-                    self.tree.detach(extra_child)
-
                 self.tree.item(group_item, open=True)
             else:
-                # Detach group if no files match filter
+                # Detach group if filter doesn't match
                 self.tree.detach(group_item)
 
         # Update column visibility and redraw
@@ -566,10 +564,17 @@ class DuplicateFinderGUI:
 
         # Update statistics and status
         self.update_statistics()
-        status_msg = f"✅ Found {filtered_exact_count} exact duplicate groups"
+        
+        status_parts = []
+        if filtered_exact_count > 0:
+            status_parts.append(f"{filtered_exact_count} exact duplicate groups")
         if filtered_similar_count > 0:
-            status_msg += f" and {filtered_similar_count} similar file groups"
-        self.status_var.set(status_msg)
+            status_parts.append(f"{filtered_similar_count} similar file groups")
+        
+        if status_parts:
+            self.status_var.set(f"✅ Showing: {' and '.join(status_parts)}")
+        else:
+            self.status_var.set("No results match the current filter")
 
 
 
