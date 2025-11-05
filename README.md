@@ -1,11 +1,11 @@
 # MediaDuplicateFinder
 **MediaDuplicateFinder** is a high-performance duplicate file finder that supports **any file type** — including images, audio, text, and Office documents.
 
-It detects both **exact duplicates** (via file hashing) and **similar files** (via perceptual hashing and content analysis), even across different formats, sizes, and quality levels.
+It detects both **exact duplicates** (via SHA-256 hashing) and **similar files** (via perceptual hashing and content analysis), even across different formats, sizes, and quality levels.
 
 The core scanning engine is written in **C++** for maximum speed and efficiency.  
 A **Python GUI** provides an intuitive interface for scanning, filtering, and safely deleting duplicates.  
-For Office document comparison, a specialized Python script (`office_comparer_batch.py`) enables batch processing of Word, Excel, and PowerPoint files.
+For Office document comparison, a specialized Python script (`office_comparer_batch.py`) enables **batch processing** of Word, Excel, and PowerPoint files with intelligent fallback mechanisms.
 
 ---
 
@@ -17,15 +17,18 @@ Make sure that all three files are located in the same directory.
 
 ---
 
+
 ## 🚀 Key Features
-- **Ultra-fast duplicate detection** for large file collections
-- Finds **similar images** using perceptual hashing (Average Hash + Difference Hash)
-- **Audio similarity** detection via metadata and filename analysis
-- **Office document comparison** (Word, Excel, PowerPoint) with deep content analysis
-- **Text file comparison** using content-based similarity matching
-- High-performance **C++ core** with integrated **stb_image** library
-- Modern **Tkinter-based GUI** for easy file browsing and duplicate management
-- **Batch processing** for efficient Office file comparisons   
+- **Ultra-fast duplicate detection** using SHA-256 hashing (Windows) or optimized hash algorithm (Linux/Mac)
+- **Perceptual image similarity** via Average Hash and Difference Hash with Hamming distance
+- **Batch Office file processing** for Word, Excel, and PowerPoint documents
+- **Content-based text comparison** using word extraction and Jaccard similarity
+- **Smart two-pass scanning** — finds exact duplicates first, then similarities
+- **Progress tracking** with real-time percentage display
+- **Robust error handling** with automatic fallbacks
+- **Cross-platform support** (Windows, Linux, macOS)
+- Modern **Tkinter-based GUI** for intuitive file management
+
 ---
 
 ## 🧩 Components Overview
