@@ -75,6 +75,38 @@ The following files **must be in the same directory**:
 
 ---
 
+## 🔧 How It Works
+
+### Exact Duplicate Detection
+- **Windows**: SHA-256 hashing via Windows Crypto API
+- **Linux/Mac**: Fast custom hash algorithm
+- Files with identical hashes are grouped as exact duplicates
+
+### Similarity Detection
+- **Images**: Perceptual hashing (Average Hash + Difference Hash) with Hamming distance comparison
+- **Audio**: Filename and metadata-based similarity analysis
+- **Office Files**: Batch processing via Python with content extraction and comparison
+- **Text/Documents**: Word-based Jaccard similarity on file content
+- **Archives**: Size and filename similarity analysis
+
+### Performance Optimizations
+- Two-pass scanning (exact duplicates first, then similarities)
+- Batch processing for Office files (single Python call for all comparisons)
+- Progress tracking with ETA calculation
+- Automatic fallback mechanisms for failed comparisons
+
+---
+## 📁 Supported File Types
+
+| Category | Extensions | Detection Method |
+|----------|-----------|------------------|
+| **Images** | `.jpg`, `.jpeg`, `.png`, `.bmp`, `.webp`, `.tiff` | Perceptual hashing (aHash + dHash) |
+| **Audio** | `.mp3`, `.flac`, `.wav`, `.aac`, `.ogg`, `.m4a` | Filename/metadata similarity |
+| **Office** | `.docx`, `.xlsx`, `.xls`, `.pptx` | Content extraction + batch comparison |
+| **Text** | `.txt`, `.pdf`, `.csv` | Word-based content analysis |
+| **Archives** | `.zip`, `.rar`, `.7z`, `.exe` | Size + filename similarity |
+
+---
 ## 🛠️ Build Instructions
 
 If you want to build the C++ backend manually:
