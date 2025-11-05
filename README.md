@@ -17,17 +17,17 @@ Make sure that all three files are located in the same directory.
 
 ---
 
-
 ## 🚀 Key Features
-- **Ultra-fast duplicate detection** using SHA-256 hashing (Windows) or optimized hash algorithm (Linux/Mac)
-- **Perceptual image similarity** via Average Hash and Difference Hash with Hamming distance
-- **Batch Office file processing** for Word, Excel, and PowerPoint documents
-- **Content-based text comparison** using word extraction and Jaccard similarity
-- **Smart two-pass scanning** — finds exact duplicates first, then similarities
-- **Progress tracking** with real-time percentage display
-- **Robust error handling** with automatic fallbacks
-- **Cross-platform support** (Windows, Linux, macOS)
-- Modern **Tkinter-based GUI** for intuitive file management
+
+- **⚡ Ultra-fast duplicate detection** using SHA-256 hashing (Windows) or optimized hash algorithm (Linux/Mac)
+- **🖼️ Perceptual image similarity** via Average Hash and Difference Hash with Hamming distance
+- **📊 Batch Office file processing** — analyze hundreds of Word/Excel/PowerPoint files in parallel
+- **📝 Content-based text comparison** using TF-IDF vectorization and cosine similarity
+- **🎯 Smart two-pass scanning** — finds exact duplicates first, then similarities (avoids redundant work)
+- **📈 Real-time progress tracking** with live updates and ETA calculation
+- **🛡️ Safe deletion workflow** — preview before deleting, automatic file priority system
+- **🎨 Modern GUI** with filtering, statistics, and wasted space calculation
+- **🔄 Cross-platform support** (Windows, Linux, macOS)
 
 ---
 
@@ -94,6 +94,32 @@ The following files **must be in the same directory**:
 - Batch processing for Office files (single Python call for all comparisons)
 - Progress tracking with ETA calculation
 - Automatic fallback mechanisms for failed comparisons
+
+---
+## 🏗️ Architecture
+
+MediaDuplicateFinder uses a **hybrid multi-language architecture** for optimal performance:
+
+### **C++ Core** (`duplicate_finder.exe`)
+- High-speed file scanning with recursive directory traversal
+- SHA-256 hashing for exact duplicate detection (Windows Crypto API)
+- Perceptual hashing for images using `stb_image` library
+- Efficient batch collection for Office file comparisons
+- Two-pass algorithm: exact duplicates → similarities
+
+### **Python Backend** (`office_comparer_batch.py`)
+- **Parallel processing** using multiprocessing.Pool
+- Content extraction from Word (python-docx), Excel (openpyxl), PowerPoint (python-pptx)
+- TF-IDF vectorization for text similarity (scikit-learn)
+- Fast Excel comparison with read-only mode
+- JSON-based inter-process communication
+
+### **Python GUI** (`duplicate_gui.py`)
+- Modern Tkinter interface with threaded scanning
+- Real-time progress updates via queue-based communication
+- Smart filtering (exact/similar/all)
+- Wasted space calculation
+- Safe deletion with preview and priority system
 
 ---
 ## 📁 Supported File Types
