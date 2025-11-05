@@ -3,9 +3,10 @@
 
 It detects both **exact duplicates** (via SHA-256 hashing) and **similar files** (via perceptual hashing and content analysis), even across different formats, sizes, and quality levels.
 
-The core scanning engine is written in **C++** for maximum speed and efficiency.  
-A **Python GUI** provides an intuitive interface for scanning, filtering, and safely deleting duplicates.  
-For Office document comparison, a specialized Python script (`office_comparer_batch.py`) enables **batch processing** of Word, Excel, and PowerPoint files with intelligent fallback mechanisms.
+**Architecture:**
+- **C++ core** for high-speed file scanning and hash computation
+- **Python GUI** (Tkinter) for intuitive file management and safe deletion
+- **Batch processor** for parallel Office document comparison (`office_comparer_batch.py`)
 
 ---
 
