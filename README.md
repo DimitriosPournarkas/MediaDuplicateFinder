@@ -13,9 +13,7 @@ For Office document comparison, the script `office_comparer_batch.py` is used.
 - Ultra-fast duplicate detection for large file collections  
 - Finds **similar files** using perceptual hashing (images) and audio fingerprinting (audio)  
 - Supports text and Office file comparison  
-- Modern **Tkinter-based GUI** for easy file browsing and duplicate management  
-- Cross-platform support (Windows & Linux)  
-
+- Modern **Tkinter-based GUI** for easy file browsing and duplicate management    
 ---
 
 ## 🧩 Components Overview
