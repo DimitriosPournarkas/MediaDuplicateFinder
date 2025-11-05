@@ -44,6 +44,9 @@ The following files **must be in the same directory**:
 2. Click on **Browse** and select the folder you want to scan.
 3. Click on **Scan Duplicates & Similar Files**. It will automatically scan all subfolders.
 ![Working](gui_pictures/gui_working.png)
+4. Finished Scan: You can see the results.
+![Finished](gui_pictures/gui_finished.png)
+5. Delete files: You can now click on **Delete All Exact Duplicates**, or delete similar files manually, or delete similar groups.
 ---
 
 ## 🛠️ Build Instructions
