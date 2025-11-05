@@ -30,7 +30,6 @@ For Office document comparison, the script `office_comparer_batch.py` is used.
 ## 🖥️ Usage
 1. Run **`duplicate_finder.exe`** (C++ core) to perform the initial scan.  
 2. Launch **`duplicate_gui.py`** (or the compiled `duplicate_gui.exe`) to browse, filter, and delete duplicates.  
-3. Optionally, run **`office_comparer_batch.py`** to compare Word, Excel, or PowerPoint files.
 
 ---
 
