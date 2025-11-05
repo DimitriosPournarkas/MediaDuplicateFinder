@@ -77,23 +77,29 @@ The following files **must be in the same directory**:
 
 ## 🔧 How It Works
 
-### Exact Duplicate Detection
-- **Windows**: SHA-256 hashing via Windows Crypto API
-- **Linux/Mac**: Fast custom hash algorithm
-- Files with identical hashes are grouped as exact duplicates
+### **Exact Duplicate Detection**
+1. Recursively scan directory for supported file types
+2. Calculate SHA-256 hash for each file (Windows) or fast custom hash (Linux/Mac)
+3. Group files with identical hashes
+4. Report groups with 2+ files
 
-### Similarity Detection
-- **Images**: Perceptual hashing (Average Hash + Difference Hash) with Hamming distance comparison
-- **Audio**: Filename and metadata-based similarity analysis
-- **Office Files**: Batch processing via Python with content extraction and comparison
-- **Text/Documents**: Word-based Jaccard similarity on file content
-- **Archives**: Size and filename similarity analysis
+### **Similarity Detection**
 
-### Performance Optimizations
-- Two-pass scanning (exact duplicates first, then similarities)
-- Batch processing for Office files (single Python call for all comparisons)
-- Progress tracking with ETA calculation
-- Automatic fallback mechanisms for failed comparisons
+| File Type | Method | Threshold |
+|-----------|--------|-----------|
+| **Images** | Average Hash + Difference Hash → Hamming distance | ≤15 bits difference |
+| **Audio** | Filename + metadata similarity | >90% similarity |
+| **Office (Word/PowerPoint)** | TF-IDF cosine similarity on extracted text | >60% similarity |
+| **Office (Excel)** | Cell-by-cell comparison of sheet data | >70% match rate |
+| **Text/PDF/CSV** | Word-based Jaccard similarity | >60% similarity |
+| **Archives** | Size ratio + filename similarity | >80% size + >60% name |
+
+### **Performance Optimizations**
+- ⚡ **Batch processing**: All Office file comparisons collected and processed in one Python call
+- 🔄 **Parallel Office processing**: Uses multiprocessing.Pool (N-1 CPU cores)
+- 📦 **Two-pass scanning**: Excludes exact duplicates from similarity search
+- 🎯 **Queue-based GUI updates**: Non-blocking progress tracking
+- 💾 **Memory-efficient Excel loading**: openpyxl with `read_only=True` and `data_only=True`
 
 ---
 ## 🏗️ Architecture
