@@ -9,6 +9,12 @@ For Office document comparison, the script `office_comparer_batch.py` is used.
 
 ---
 
+## 📦 Download
+The latest precompiled version (including `duplicate_gui.py`, `office_comparer_batch.py`, and `duplicate_finder.exe`) can be downloaded from the [**Releases** section](../../releases/latest).  
+Simply download the ZIP file, extract it, and run `duplicate_gui.py`.
+
+---
+
 ## 🚀 Key Features
 - Ultra-fast duplicate detection for large file collections  
 - Finds **similar files** using perceptual hashing (images) and audio fingerprinting (audio)  
