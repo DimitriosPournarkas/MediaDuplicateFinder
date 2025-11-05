@@ -37,7 +37,7 @@ For Office document comparison, the script `office_comparer_batch.py` is used.
 - **Python 3.8+**
 - Required Python packages:
   ```bash
-  pip install pillow numpy openpyxl python-docx pydub tk
+  pip install pillow numpy openpyxl python-docx python-pptx scikit-learn pydub
 The C++ executable (duplicate_finder.exe or duplicate_finder) must be in the same directory as the GUI.
 ## 🛠️ Build Instructions
 
