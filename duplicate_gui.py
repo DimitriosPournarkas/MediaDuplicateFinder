@@ -418,7 +418,7 @@ class DuplicateFinderGUI:
     def calculate_wasted_space(self):
         """Calculate total space wasted by duplicates"""
         total_wasted = 0
-
+        
         # Precompute all file sizes to avoid multiple os.path.getsize calls
         file_sizes = {}
         for _, _, group in self.duplicate_groups:
@@ -428,15 +428,15 @@ class DuplicateFinderGUI:
                         file_sizes[file_path] = os.path.getsize(file_path) if os.path.exists(file_path) else 0
                     except:
                         file_sizes[file_path] = 0
-
+        
         # Calculate wasted space for exact duplicates
         for group_type, group_similarity, group in self.duplicate_groups:
             if group_type == "EXACT" and len(group) > 1:
                 first_file = group[0][0]
-                # Use precomputed file size from self.file_sizes
-                file_size = self.file_sizes.get(first_file, 0)
+                # Use precomputed file size from file_sizes (NOT self.file_sizes!)
+                file_size = file_sizes.get(first_file, 0)  # ← Ändere self.file_sizes zu file_sizes
                 total_wasted += file_size * (len(group) - 1)
-
+        
         return total_wasted
 
 
