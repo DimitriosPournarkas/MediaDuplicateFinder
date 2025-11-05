@@ -28,7 +28,7 @@ For Office document comparison, the script `office_comparer_batch.py` is used.
 ---
 
 ## 🖥️ Usage
-1. Run ** `duplicate_gui.py`**
+1. Run **`duplicate_gui.py`**
 ---
 
 ## ⚙️ Requirements
