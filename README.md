@@ -18,6 +18,7 @@ It detects both **exact duplicates** (via SHA-256 hashing) and **similar files**
 
 ### **Quick Start (Recommended)**
 1. Download the latest precompiled version from [**Releases**](../../releases/latest) If you download `duplicate_finder_exe.zip` and extract it, you **don't need any other installations**.  
+   Simply run `duplicate_gui.exe` and make sure all three `.exe` files are in the same directory.
 2. Extract the ZIP file
 3. Ensure all three files are in the same directory:
    - `duplicate_finder.exe` 
