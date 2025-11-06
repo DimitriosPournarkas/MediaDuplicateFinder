@@ -1,7 +1,7 @@
 # MediaDuplicateFinder
 
-![C++](https://img.shields.io/badge/C%2B%2B-17-blue)
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
+[![C++](https://img.shields.io/badge/C%2B%2B-17-blue)](https://en.cppreference.com/w/cpp/17)
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/doc/)
 
 **MediaDuplicateFinder** is a high-performance duplicate file finder that supports **any file type** — including images, audio, text, and Office documents.
 
