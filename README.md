@@ -20,7 +20,7 @@ It detects both **exact duplicates** (via SHA-256 hashing) and **similar files**
 1. Download the latest precompiled version from [**Releases**](../../releases/latest)
 2. Extract the ZIP file
 3. Ensure all three files are in the same directory:
-   - `duplicate_finder.exe` (or `duplicate_finder` on Linux/Mac)
+   - `duplicate_finder.exe` 
    - `duplicate_gui.py`
    - `office_comparer_batch.py`
 4. Install Python dependencies:
@@ -34,7 +34,7 @@ It detects both **exact duplicates** (via SHA-256 hashing) and **similar files**
 
 ### **System Requirements**
 - **Python 3.8+**
-- **Windows 7+** / **Linux** / **macOS**
+- **Windows 7+** 
 - Required Python packages: `pillow`, `numpy`, `openpyxl`, `python-docx`, `python-pptx`, `scikit-learn`
 
 ---
