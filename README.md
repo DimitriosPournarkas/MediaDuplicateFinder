@@ -42,7 +42,7 @@ It detects both **exact duplicates** (via SHA-256 hashing) and **similar files**
 
 ## 🚀 Key Features
 
-- ⚡ **Ultra-fast duplicate detection** using SHA-256 hashing (Windows) or optimized hash algorithm (Linux/Mac)
+- ⚡ **Ultra-fast duplicate detection** using SHA-256 hashing (Windows)
 - 🖼️ **Perceptual image similarity** via Average Hash and Difference Hash with Hamming distance
 - 📊 **Batch Office file processing** — analyze hundreds of Word/Excel/PowerPoint files in parallel
 - 📝 **Content-based text comparison** using TF-IDF vectorization and cosine similarity
